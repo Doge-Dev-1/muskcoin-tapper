@@ -4,6 +4,11 @@ import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 
 export default [
+  // Config file itself as module
+  {
+    files: ["eslint.config.mjs"],
+    languageOptions: { sourceType: "module" }
+  },
   // Old vanilla JS files (script)
   {
     files: ["*.js", "**/*.js", "!pages/**/*.js"],
@@ -23,7 +28,7 @@ export default [
     rules: {
       ...react.configs.recommended.rules,
       ...reactHooks.configs.recommended.rules,
-      "react/prop-types": "off"  // Next.js doesn’t need prop-types
+      "react/prop-types": "off"
     },
     settings: { react: { version: "detect" } }
   },
