@@ -1,13 +1,12 @@
-import globals from "globals";
-import js from "@eslint/js";
-import react from "eslint-plugin-react";
-import reactHooks from "eslint-plugin-react-hooks";
+const globals = require("globals");
+const js = require("@eslint/js");
+const react = require("eslint-plugin-react");
+const reactHooks = require("eslint-plugin-react-hooks");
 
-export default [
-  // Config file itself as module
+module.exports = [
+  // Ignore JSON files
   {
-    files: ["eslint.config.mjs"],
-    languageOptions: { sourceType: "module" }
+    ignores: ["**/*.json"]
   },
   // Old vanilla JS files (script)
   {
