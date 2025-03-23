@@ -247,7 +247,7 @@ const default_player = new Player(
     '0/0', //trinket_completion,
     0, //pages; tome pages that increase prestige potential
     0, //golden_puppys
-    0, //prestige_potential; golden puppys recived upon prestige
+    0, //prestige_potential; golden puppys received upon prestige
     0, //prestige_potential_cap
     false, //prestige_available; wether you can prestige
     clone(playerPrestigeTemplate), //prestige
@@ -480,7 +480,7 @@ class Tome {
     add(amount=1){
         // Handling cases where the tomes can not be bought
         if(typeof(amount)!=="number") return console.error("amount needs to be a number");
-        if(this.value+amount>this.max) return toast("Can not purchase", `There are only ${this.max} tomes containing knowledge on this subejct`, '', false, true);
+        if(this.value+amount>this.max) return toast("Can not purchase", `There are only ${this.max} tomes containing knowledge on this subject`, '', false, true);
         
         // Return if can't afford
         let price = this.priceQuery(amount)
@@ -1480,7 +1480,7 @@ function createPriceArray(character, totalItems){
     //creates new array
     let priceArray = new Array;
     
-    //scalling modifer
+    //scaling modifier
     let modifier = 0;
     let scaling = defaultChar[character.nickname].scaling;
 
@@ -1491,12 +1491,12 @@ function createPriceArray(character, totalItems){
     priceArray.push(defaultChar[character.nickname].lvlupPrice*((Jared.data.level_up_discount.value || 100)/100));
     
     let originalIvalue = 1;
-    //since Bill's pricee curve starts at lvl 1 instead of zero we push original value twice so priceArray[1] is the price at lvl 1.
+    //since Bill's price curve starts at lvl 1 instead of zero we push original value twice so priceArray[1] is the price at lvl 1.
     if(character==Boomer_Bill){
         priceArray.push(defaultChar[character.nickname].lvlupPrice*((Jared.data.level_up_discount.value || 100)/100));
         originalIvalue = 2;
     }
-    //selects the correct scalling modifer and than pushes a new price onto the array
+    //selects the correct scaling modifier and than pushes a new price onto the array
     for(let i=originalIvalue; i<totalItems;i++){
         for(let si = scaling.length-1; si >= 0; si--) {
             let item = scaling[si];
@@ -1797,7 +1797,7 @@ function createTool(type=0, amount=1, progress=0, intended_character=false) {
     function frame() { progress < price ? craft() : whenDone(); }
     function craft() {
         let normalAdjustment = Math.floor(tool_craft_speed[type] * player.puppys); 
-        let inThreeFrames = progress+(3*Math.floor(tool_craft_speed[type] * player.puppys)); //aproximates how much progress will be done in three frames
+        let inThreeFrames = progress+(3*Math.floor(tool_craft_speed[type] * player.puppys)); //approximates how much progress will be done in three frames
         let adjust = inThreeFrames>=price ? normalAdjustment : 0.3*normalAdjustment; //adjusts the progress; amount depends on if the hoe will be completed in three frames
         progress += adjust;
         player.puppys -= adjust;
