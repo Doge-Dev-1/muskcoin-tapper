@@ -27,7 +27,8 @@ module.exports = [
     rules: {
       ...react.configs.recommended.rules,
       ...reactHooks.configs.recommended.rules,
-      "react/prop-types": "off"
+      "react/prop-types": "off",
+      "react/no-unknown-property": ["error", { ignore: ["jsx"] }] // Allow <style jsx>
     },
     settings: { react: { version: "detect" } }
   },
