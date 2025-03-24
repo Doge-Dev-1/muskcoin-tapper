@@ -10,6 +10,7 @@ export default function Home() {
     goldenMusk: 0,      // golden_puppys
     clicks: 0,          // total clicks
     fallingGrabbed: 0,  // falling_puppys_grabbed
+    elonLevel: 1,       // From Boomer_Bill.lvl
   });
   const [drops, setDrops] = useState([]);
   const [fallingId, setFallingId] = useState(0);
@@ -38,21 +39,21 @@ export default function Home() {
       id: Date.now(),
       x: e.clientX + (Math.random() * 20 - 10),
       y: e.clientY + (Math.random() * 20 - 10),
-      type: 'click', // Regular drop
+      type: 'click',
     };
     setDrops((d) => [...d, newDrop]);
     setTimeout(() => {
       setDrops((d) => d.filter((drop) => drop.id !== newDrop.id));
     }, 1000);
-    fallingMusk(); // Trigger falling $MUSK
+    fallingMusk();
   };
 
   // Falling $MUSK (from fallingpuppy)
   const fallingMusk = () => {
     const roll = Math.ceil(Math.random() * 100);
-    console.log(`Falling roll: ${roll}`); // Debug
-    if (roll > 50) return; // 50% chance for testing (was 1)
-    const type = 'musk'; // Bonus drop
+    console.log(`Falling roll: ${roll}`);
+    if (roll > 50) return; // 50% for testing
+    const type = 'musk';
     const rewardVariation = (Math.ceil(Math.random() * 1500) + 500) / 100;
     const amount = Math.round(player.cpc * rewardVariation);
 
@@ -62,12 +63,12 @@ export default function Home() {
       type,
       amount,
     };
-    console.log(`Falling drop: +${amount} at x:${fallingDrop.x}`); // Debug
+    console.log(`Falling drop: +${amount} at x:${fallingDrop.x}`);
     setFallingId(fallingId + 1);
     setDrops((d) => [...d, fallingDrop]);
     setTimeout(() => {
       setDrops((d) => d.filter((drop) => drop.id !== fallingDrop.id));
-    }, 2600); // Matches animation
+    }, 2600);
   };
 
   // Catch falling $MUSK
@@ -76,7 +77,7 @@ export default function Home() {
       const newDrops = prevDrops.filter((drop) => drop.id !== id);
       setPlayer((p) => {
         const newCount = p.muskCount + amount;
-        console.log(`Caught: +${amount}, new total: ${newCount}`); // Debug
+        console.log(`Caught: +${amount}, new total: ${newCount}`);
         return {
           ...p,
           muskCount: newCount,
@@ -85,6 +86,18 @@ export default function Home() {
       });
       return newDrops;
     });
+  };
+
+  // Upgrade Elon (from levelUp)
+  const upgradeElon = () => {
+    const price = Math.floor(100 * Math.pow(1.11, player.elonLevel - 1)); // From getLevelPrice, simplified
+    if (player.muskCount < price) return; // Not enough $MUSK
+    setPlayer((p) => ({
+      ...p,
+      muskCount: p.muskCount - price,
+      elonLevel: p.elonLevel + 1,
+      cpc: p.elonLevel + 1, // CPC scales with level
+    }));
   };
 
   return (
@@ -97,6 +110,15 @@ export default function Home() {
       <button id="main_musk" onClick={handleClick}>
         Tap for $MUSK!
       </button>
+      <div>
+        <p>Elon Level: {player.elonLevel} | CPC: {player.cpc}</p>
+        <button
+          onClick={upgradeElon}
+          disabled={player.muskCount < Math.floor(100 * Math.pow(1.11, player.elonLevel - 1))}
+        >
+          Upgrade Elon (Cost: {Math.floor(100 * Math.pow(1.11, player.elonLevel - 1))} $MUSK)
+        </button>
+      </div>
       {drops.map((drop) => (
         <div
           key={drop.id}
