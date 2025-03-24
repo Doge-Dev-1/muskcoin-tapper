@@ -4,18 +4,26 @@ import Head from 'next/head';
 export default function Home() {
   // Player state (from Player class)
   const [player, setPlayer] = useState({
-    muskCount: 0,        // puppys
-    cpc: 1,             // clicks per click
-    cps: 0,             // clicks per second
-    goldenMusk: 0,      // golden_puppys
-    clicks: 0,          // total clicks
-    fallingGrabbed: 0,  // falling_puppys_grabbed
-    elonLevel: 1,       // From Boomer_Bill.lvl
+    muskCount: 0,
+    cpc: 1,
+    cps: 0,
+    goldenMusk: 0,
+    clicks: 0,
+    fallingGrabbed: 0,
+    elonLevel: 1,
+    grimesLevel: 0,
   });
   const [drops, setDrops] = useState([]);
   const [fallingId, setFallingId] = useState(0);
+  const [tasks, setTasks] = useState(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('completedTasks') : null;
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [lastClaimDate, setLastClaimDate] = useState(() => {
+    return typeof window !== 'undefined' ? localStorage.getItem('lastClaimDate') || '' : '';
+  });
 
-  // CPS interval (from puppysPerSecond)
+  // CPS interval
   useEffect(() => {
     const cpsInterval = setInterval(() => {
       if (player.cps > 0) {
@@ -27,6 +35,14 @@ export default function Home() {
     }, 100);
     return () => clearInterval(cpsInterval);
   }, [player.cps]);
+
+  // Save tasks to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('completedTasks', JSON.stringify(tasks));
+      localStorage.setItem('lastClaimDate', lastClaimDate);
+    }
+  }, [tasks, lastClaimDate]);
 
   // Click handler
   const handleClick = (e) => {
@@ -48,7 +64,7 @@ export default function Home() {
     fallingMusk();
   };
 
-  // Falling $MUSK (from fallingpuppy)
+  // Falling $MUSK
   const fallingMusk = () => {
     const roll = Math.ceil(Math.random() * 100);
     console.log(`Falling roll: ${roll}`);
@@ -88,16 +104,60 @@ export default function Home() {
     });
   };
 
-  // Upgrade Elon (from levelUp)
+  // Upgrade Elon
   const upgradeElon = () => {
-    const price = Math.floor(100 * Math.pow(1.11, player.elonLevel - 1)); // From getLevelPrice, simplified
-    if (player.muskCount < price) return; // Not enough $MUSK
+    const price = Math.floor(100 * Math.pow(1.11, player.elonLevel - 1));
+    if (player.muskCount < price) return;
     setPlayer((p) => ({
       ...p,
       muskCount: p.muskCount - price,
       elonLevel: p.elonLevel + 1,
-      cpc: p.elonLevel + 1, // CPC scales with level
+      cpc: p.elonLevel + 1,
     }));
+  };
+
+  // Hire/Upgrade Grimes
+  const upgradeGrimes = () => {
+    const hireCost = 200;
+    const levelCost = Math.floor(200 * Math.pow(1.058, player.grimesLevel));
+    const price = player.grimesLevel === 0 ? hireCost : levelCost;
+    if (player.muskCount < price) return;
+    setPlayer((p) => ({
+      ...p,
+      muskCount: p.muskCount - price,
+      grimesLevel: p.grimesLevel + 1,
+      cps: p.cps + 1,
+    }));
+  };
+
+  // Task handler (stubbed)
+  const startTask = (taskId, taskUrl) => {
+    const today = new Date().toISOString().split('T')[0];
+    if (tasks[taskId] === today) {
+      alert('You’ve already completed this task today.');
+      return;
+    }
+    window.open(taskUrl, '_blank');
+    setTimeout(() => {
+      setTasks((t) => ({ ...t, [taskId]: today }));
+    }, 5000);
+  };
+
+  // Claim daily reward
+  const claimReward = () => {
+    const today = new Date().toISOString().split('T')[0];
+    if (lastClaimDate === today) {
+      alert('You can only claim once a day.');
+      return;
+    }
+    const taskIds = ['task-x-post'];
+    const allCompleted = taskIds.every((id) => tasks[id] === today);
+    if (!allCompleted) return;
+    setPlayer((p) => ({
+      ...p,
+      muskCount: p.muskCount + 200,
+    }));
+    setLastClaimDate(today);
   };
 
   return (
@@ -117,6 +177,41 @@ export default function Home() {
           disabled={player.muskCount < Math.floor(100 * Math.pow(1.11, player.elonLevel - 1))}
         >
           Upgrade Elon (Cost: {Math.floor(100 * Math.pow(1.11, player.elonLevel - 1))} $MUSK)
+        </button>
+      </div>
+      <div>
+        <p>Grimes Level: {player.grimesLevel} | CPS: {player.cps}</p>
+        <button
+          onClick={upgradeGrimes}
+          disabled={
+            player.muskCount <
+            (player.grimesLevel === 0 ? 200 : Math.floor(200 * Math.pow(1.058, player.grimesLevel)))
+          }
+        >
+          {player.grimesLevel === 0
+            ? 'Hire Grimes (200 $MUSK)'
+            : `Upgrade Grimes (Cost: ${Math.floor(200 * Math.pow(1.058, player.grimesLevel))} $MUSK)`}
+        </button>
+      </div>
+      <div>
+        <h2>Daily Tasks</h2>
+        <div id="task-x-post">
+          <p>Post on X: &quot;Loving #MUSK Tapper!&quot;</p>
+          <button
+            onClick={() => startTask('task-x-post', 'https://x.com')}
+            disabled={tasks['task-x-post'] === new Date().toISOString().split('T')[0]}
+          >
+            {tasks['task-x-post'] === new Date().toISOString().split('T')[0] ? 'Done' : 'Start'}
+          </button>
+        </div>
+        <button
+          onClick={claimReward}
+          disabled={
+            tasks['task-x-post'] !== new Date().toISOString().split('T')[0] ||
+            lastClaimDate === new Date().toISOString().split('T')[0]
+          }
+        >
+          Claim 200 $MUSK
         </button>
       </div>
       {drops.map((drop) => (
