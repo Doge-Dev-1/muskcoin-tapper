@@ -13,6 +13,7 @@ export default function Home() {
     elonLevel: 1,
     grimesLevel: 0,
     prestigeLevel: 0,
+    nfts: [], // Stubbed NFT ownership
   });
   const [drops, setDrops] = useState([]);
   const [fallingId, setFallingId] = useState(0);
@@ -29,18 +30,19 @@ export default function Home() {
     }
   }, []);
 
-  // CPS interval
+  // CPS interval with NFT boost
   useEffect(() => {
     const cpsInterval = setInterval(() => {
       if (player.cps > 0) {
+        const nftCpsBoost = player.nfts.includes('tesla-coil') ? 1.5 : 1; // +50% CPS
         setPlayer((p) => ({
           ...p,
-          muskCount: p.muskCount + (p.cps * (1 + p.prestigeLevel * 0.1)) / 10,
+          muskCount: p.muskCount + (p.cps * (1 + p.prestigeLevel * 0.1) * nftCpsBoost) / 10,
         }));
       }
     }, 100);
     return () => clearInterval(cpsInterval);
-  }, [player.cps, player.prestigeLevel]);
+  }, [player.cps, player.prestigeLevel, player.nfts]);
 
   // Save tasks to localStorage
   useEffect(() => {
@@ -50,9 +52,10 @@ export default function Home() {
     }
   }, [tasks, lastClaimDate]);
 
-  // Click handler
+  // Click handler with NFT boost
   const handleClick = (e) => {
-    const cpcWithPrestige = player.cpc * (1 + player.prestigeLevel * 0.1);
+    const nftCpcBoost = player.nfts.includes('tesla-coil') ? 1.5 : 1; // +50% CPC
+    const cpcWithPrestige = player.cpc * (1 + player.prestigeLevel * 0.1) * nftCpcBoost;
     setPlayer((p) => ({
       ...p,
       muskCount: p.muskCount + cpcWithPrestige,
@@ -71,14 +74,15 @@ export default function Home() {
     fallingMusk();
   };
 
-  // Falling $MUSK
+  // Falling $MUSK with NFT boost
   const fallingMusk = () => {
     const roll = Math.ceil(Math.random() * 100);
     console.log(`Falling roll: ${roll}`);
     if (roll > 1) return; // 1% chance
     const type = 'musk';
+    const nftCpcBoost = player.nfts.includes('tesla-coil') ? 1.5 : 1;
     const rewardVariation = (Math.ceil(Math.random() * 1500) + 500) / 100;
-    const amount = Math.round(player.cpc * rewardVariation * (1 + player.prestigeLevel * 0.1));
+    const amount = Math.round(player.cpc * rewardVariation * (1 + player.prestigeLevel * 0.1) * nftCpcBoost);
 
     const fallingDrop = {
       id: fallingId,
@@ -151,6 +155,7 @@ export default function Home() {
       elonLevel: 1,
       grimesLevel: 0,
       prestigeLevel: p.prestigeLevel + 1,
+      nfts: p.nfts, // Persist NFTs across prestige
     }));
     setDrops([]);
     setTasks({});
@@ -159,6 +164,17 @@ export default function Home() {
       localStorage.setItem('completedTasks', JSON.stringify({}));
       localStorage.setItem('lastClaimDate', '');
     }
+  };
+
+  // Stub NFT purchase
+  const buyNFT = (nftId) => {
+    const price = 5000; // Placeholder—$MUSK cost
+    if (player.muskCount < price || player.nfts.includes(nftId)) return;
+    setPlayer((p) => ({
+      ...p,
+      muskCount: p.muskCount - price,
+      nfts: [...p.nfts, nftId],
+    }));
   };
 
   // Task handler
@@ -203,7 +219,7 @@ export default function Home() {
         Tap for $MUSK!
       </button>
       <div>
-        <p>Elon Level: {player.elonLevel} | CPC: {(player.cpc * (1 + player.prestigeLevel * 0.1)).toFixed(1)}</p>
+        <p>Elon Level: {player.elonLevel} | CPC: {(player.cpc * (1 + player.prestigeLevel * 0.1) * (player.nfts.includes('tesla-coil') ? 1.5 : 1)).toFixed(1)}</p>
         <button
           onClick={upgradeElon}
           disabled={player.muskCount < Math.floor(100 * Math.pow(1.11, player.elonLevel - 1))}
@@ -212,7 +228,7 @@ export default function Home() {
         </button>
       </div>
       <div>
-        <p>Grimes Level: {player.grimesLevel} | CPS: {(player.cps * (1 + player.prestigeLevel * 0.1)).toFixed(1)}</p>
+        <p>Grimes Level: {player.grimesLevel} | CPS: {(player.cps * (1 + player.prestigeLevel * 0.1) * (player.nfts.includes('tesla-coil') ? 1.5 : 1)).toFixed(1)}</p>
         <button
           onClick={upgradeGrimes}
           disabled={
@@ -228,6 +244,16 @@ export default function Home() {
       <div>
         <button onClick={prestige} disabled={player.muskCount < 10000}>
           Prestige (Reset for {Math.floor(player.muskCount / 10000)} Golden $MUSK)
+        </button>
+      </div>
+      <div>
+        <h2>NFTs</h2>
+        <p>Tesla Coil: +50% CPC & CPS {player.nfts.includes('tesla-coil') ? '(Owned)' : ''}</p>
+        <button
+          onClick={() => buyNFT('tesla-coil')}
+          disabled={player.muskCount < 5000 || player.nfts.includes('tesla-coil')}
+        >
+          Buy Tesla Coil (5000 $MUSK)
         </button>
       </div>
       <div>
