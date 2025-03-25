@@ -68,7 +68,7 @@ export default function Home() {
   const fallingMusk = () => {
     const roll = Math.ceil(Math.random() * 100);
     console.log(`Falling roll: ${roll}`);
-    if (roll > 50) return; // 50% for testing
+    if (roll > 1) return; // 1% chance (was 50)
     const type = 'musk';
     const rewardVariation = (Math.ceil(Math.random() * 1500) + 500) / 100;
     const amount = Math.round(player.cpc * rewardVariation);
