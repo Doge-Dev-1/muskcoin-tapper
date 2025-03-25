@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 
 export default function Home() {
-  // Player state (from Player class)
+  // Player state
   const [player, setPlayer] = useState({
     muskCount: 0,
     cpc: 1,
@@ -12,16 +12,22 @@ export default function Home() {
     fallingGrabbed: 0,
     elonLevel: 1,
     grimesLevel: 0,
+    prestigeLevel: 0,
   });
   const [drops, setDrops] = useState([]);
   const [fallingId, setFallingId] = useState(0);
-  const [tasks, setTasks] = useState(() => {
-    const saved = typeof window !== 'undefined' ? localStorage.getItem('completedTasks') : null;
-    return saved ? JSON.parse(saved) : {};
-  });
-  const [lastClaimDate, setLastClaimDate] = useState(() => {
-    return typeof window !== 'undefined' ? localStorage.getItem('lastClaimDate') || '' : '';
-  });
+  const [tasks, setTasks] = useState({});
+  const [lastClaimDate, setLastClaimDate] = useState('');
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedTasks = localStorage.getItem('completedTasks');
+      const savedDate = localStorage.getItem('lastClaimDate');
+      if (savedTasks) setTasks(JSON.parse(savedTasks));
+      if (savedDate) setLastClaimDate(savedDate);
+    }
+  }, []);
 
   // CPS interval
   useEffect(() => {
@@ -29,12 +35,12 @@ export default function Home() {
       if (player.cps > 0) {
         setPlayer((p) => ({
           ...p,
-          muskCount: p.muskCount + p.cps / 10,
+          muskCount: p.muskCount + (p.cps * (1 + p.prestigeLevel * 0.1)) / 10,
         }));
       }
     }, 100);
     return () => clearInterval(cpsInterval);
-  }, [player.cps]);
+  }, [player.cps, player.prestigeLevel]);
 
   // Save tasks to localStorage
   useEffect(() => {
@@ -46,9 +52,10 @@ export default function Home() {
 
   // Click handler
   const handleClick = (e) => {
+    const cpcWithPrestige = player.cpc * (1 + player.prestigeLevel * 0.1);
     setPlayer((p) => ({
       ...p,
-      muskCount: p.muskCount + p.cpc,
+      muskCount: p.muskCount + cpcWithPrestige,
       clicks: p.clicks + 1,
     }));
     const newDrop = {
@@ -68,10 +75,10 @@ export default function Home() {
   const fallingMusk = () => {
     const roll = Math.ceil(Math.random() * 100);
     console.log(`Falling roll: ${roll}`);
-    if (roll > 1) return; // 1% chance (was 50)
+    if (roll > 1) return; // 1% chance
     const type = 'musk';
     const rewardVariation = (Math.ceil(Math.random() * 1500) + 500) / 100;
-    const amount = Math.round(player.cpc * rewardVariation);
+    const amount = Math.round(player.cpc * rewardVariation * (1 + player.prestigeLevel * 0.1));
 
     const fallingDrop = {
       id: fallingId,
@@ -130,7 +137,31 @@ export default function Home() {
     }));
   };
 
-  // Task handler (stubbed)
+  // Prestige
+  const prestige = () => {
+    if (player.muskCount < 10000) return;
+    const goldenEarned = Math.floor(player.muskCount / 10000);
+    setPlayer((p) => ({
+      muskCount: 0,
+      cpc: 1,
+      cps: 0,
+      goldenMusk: p.goldenMusk + goldenEarned,
+      clicks: 0,
+      fallingGrabbed: 0,
+      elonLevel: 1,
+      grimesLevel: 0,
+      prestigeLevel: p.prestigeLevel + 1,
+    }));
+    setDrops([]);
+    setTasks({});
+    setLastClaimDate('');
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('completedTasks', JSON.stringify({}));
+      localStorage.setItem('lastClaimDate', '');
+    }
+  };
+
+  // Task handler
   const startTask = (taskId, taskUrl) => {
     const today = new Date().toISOString().split('T')[0];
     if (tasks[taskId] === today) {
@@ -167,11 +198,12 @@ export default function Home() {
       </Head>
       <h1>MuskCoin Tapper</h1>
       <div id="musk_Count">{Math.floor(player.muskCount)} $MUSK</div>
+      <p>Golden $MUSK: {player.goldenMusk} | Prestige Level: {player.prestigeLevel}</p>
       <button id="main_musk" onClick={handleClick}>
         Tap for $MUSK!
       </button>
       <div>
-        <p>Elon Level: {player.elonLevel} | CPC: {player.cpc}</p>
+        <p>Elon Level: {player.elonLevel} | CPC: {(player.cpc * (1 + player.prestigeLevel * 0.1)).toFixed(1)}</p>
         <button
           onClick={upgradeElon}
           disabled={player.muskCount < Math.floor(100 * Math.pow(1.11, player.elonLevel - 1))}
@@ -180,7 +212,7 @@ export default function Home() {
         </button>
       </div>
       <div>
-        <p>Grimes Level: {player.grimesLevel} | CPS: {player.cps}</p>
+        <p>Grimes Level: {player.grimesLevel} | CPS: {(player.cps * (1 + player.prestigeLevel * 0.1)).toFixed(1)}</p>
         <button
           onClick={upgradeGrimes}
           disabled={
@@ -191,6 +223,11 @@ export default function Home() {
           {player.grimesLevel === 0
             ? 'Hire Grimes (200 $MUSK)'
             : `Upgrade Grimes (Cost: ${Math.floor(200 * Math.pow(1.058, player.grimesLevel))} $MUSK)`}
+        </button>
+      </div>
+      <div>
+        <button onClick={prestige} disabled={player.muskCount < 10000}>
+          Prestige (Reset for {Math.floor(player.muskCount / 10000)} Golden $MUSK)
         </button>
       </div>
       <div>
