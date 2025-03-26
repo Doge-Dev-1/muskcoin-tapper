@@ -14,23 +14,26 @@ export default function Home() {
     prestigeLevel: 0,
     nfts: [],
     xAccount: null,
+    walletAddress: null,
   });
   const [drops, setDrops] = useState([]);
   const [fallingId, setFallingId] = useState(0);
   const [tasks, setTasks] = useState({});
   const [lastClaimDate, setLastClaimDate] = useState('');
 
+  // Load full player state from localStorage on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const savedPlayer = localStorage.getItem('player');
       const savedTasks = localStorage.getItem('completedTasks');
       const savedDate = localStorage.getItem('lastClaimDate');
-      const savedXAccount = localStorage.getItem('xAccount');
+      if (savedPlayer) setPlayer(JSON.parse(savedPlayer));
       if (savedTasks) setTasks(JSON.parse(savedTasks));
       if (savedDate) setLastClaimDate(savedDate);
-      if (savedXAccount) setPlayer((p) => ({ ...p, xAccount: savedXAccount }));
     }
   }, []);
 
+  // CPS interval with NFT boost
   useEffect(() => {
     const cpsInterval = setInterval(() => {
       if (player.cps > 0) {
@@ -44,13 +47,14 @@ export default function Home() {
     return () => clearInterval(cpsInterval);
   }, [player.cps, player.prestigeLevel, player.nfts]);
 
+  // Save full player state to localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      localStorage.setItem('player', JSON.stringify(player));
       localStorage.setItem('completedTasks', JSON.stringify(tasks));
       localStorage.setItem('lastClaimDate', lastClaimDate);
-      localStorage.setItem('xAccount', player.xAccount || '');
     }
-  }, [tasks, lastClaimDate, player.xAccount]);
+  }, [player, tasks, lastClaimDate]);
 
   const handleClick = (e) => {
     const nftCpcBoost = player.nfts.includes('tesla-coil') ? 1.5 : 1;
@@ -151,6 +155,7 @@ export default function Home() {
       prestigeLevel: p.prestigeLevel + 1,
       nfts: p.nfts,
       xAccount: p.xAccount,
+      walletAddress: p.walletAddress,
     }));
     setDrops([]);
     setTasks({});
@@ -162,6 +167,10 @@ export default function Home() {
   const buyNFT = (nftId) => {
     const price = 5000;
     if (player.muskCount < price || player.nfts.includes(nftId)) return;
+    if (!player.walletAddress) {
+      alert('Please connect your Polygon wallet first!');
+      return;
+    }
     setPlayer((p) => ({
       ...p,
       muskCount: p.muskCount - price,
@@ -176,6 +185,15 @@ export default function Home() {
       xAccount: mockXHandle,
     }));
     alert(`Logged in as ${mockXHandle} (stubbed)`);
+  };
+
+  const connectWallet = () => {
+    const mockWallet = '0x1234567890abcdef1234567890abcdef12345678';
+    setPlayer((p) => ({
+      ...p,
+      walletAddress: mockWallet,
+    }));
+    alert(`Connected wallet: ${mockWallet} (stubbed)`);
   };
 
   const startTask = (taskId, taskUrl) => {
@@ -225,6 +243,10 @@ export default function Home() {
       <p>X Account: {player.xAccount || 'Not logged in'}</p>
       {!player.xAccount && (
         <button onClick={loginWithX}>Login with X</button>
+      )}
+      <p>Wallet: {player.walletAddress || 'Not connected'}</p>
+      {!player.walletAddress && (
+        <button onClick={connectWallet}>Connect Polygon Wallet</button>
       )}
       <button id="main_musk" onClick={handleClick}>
         Tap for $MUSK!
