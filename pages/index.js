@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 
 export default function Home() {
-  // Player state
   const [player, setPlayer] = useState({
     muskCount: 0,
     cpc: 1,
@@ -13,28 +12,29 @@ export default function Home() {
     elonLevel: 1,
     grimesLevel: 0,
     prestigeLevel: 0,
-    nfts: [], // Stubbed NFT ownership
+    nfts: [],
+    xAccount: null,
   });
   const [drops, setDrops] = useState([]);
   const [fallingId, setFallingId] = useState(0);
   const [tasks, setTasks] = useState({});
   const [lastClaimDate, setLastClaimDate] = useState('');
 
-  // Load from localStorage on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedTasks = localStorage.getItem('completedTasks');
       const savedDate = localStorage.getItem('lastClaimDate');
+      const savedXAccount = localStorage.getItem('xAccount');
       if (savedTasks) setTasks(JSON.parse(savedTasks));
       if (savedDate) setLastClaimDate(savedDate);
+      if (savedXAccount) setPlayer((p) => ({ ...p, xAccount: savedXAccount }));
     }
   }, []);
 
-  // CPS interval with NFT boost
   useEffect(() => {
     const cpsInterval = setInterval(() => {
       if (player.cps > 0) {
-        const nftCpsBoost = player.nfts.includes('tesla-coil') ? 1.5 : 1; // +50% CPS
+        const nftCpsBoost = player.nfts.includes('tesla-coil') ? 1.5 : 1;
         setPlayer((p) => ({
           ...p,
           muskCount: p.muskCount + (p.cps * (1 + p.prestigeLevel * 0.1) * nftCpsBoost) / 10,
@@ -44,17 +44,16 @@ export default function Home() {
     return () => clearInterval(cpsInterval);
   }, [player.cps, player.prestigeLevel, player.nfts]);
 
-  // Save tasks to localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('completedTasks', JSON.stringify(tasks));
       localStorage.setItem('lastClaimDate', lastClaimDate);
+      localStorage.setItem('xAccount', player.xAccount || '');
     }
-  }, [tasks, lastClaimDate]);
+  }, [tasks, lastClaimDate, player.xAccount]);
 
-  // Click handler with NFT boost
   const handleClick = (e) => {
-    const nftCpcBoost = player.nfts.includes('tesla-coil') ? 1.5 : 1; // +50% CPC
+    const nftCpcBoost = player.nfts.includes('tesla-coil') ? 1.5 : 1;
     const cpcWithPrestige = player.cpc * (1 + player.prestigeLevel * 0.1) * nftCpcBoost;
     setPlayer((p) => ({
       ...p,
@@ -74,11 +73,10 @@ export default function Home() {
     fallingMusk();
   };
 
-  // Falling $MUSK with NFT boost
   const fallingMusk = () => {
     const roll = Math.ceil(Math.random() * 100);
     console.log(`Falling roll: ${roll}`);
-    if (roll > 1) return; // 1% chance
+    if (roll > 1) return;
     const type = 'musk';
     const nftCpcBoost = player.nfts.includes('tesla-coil') ? 1.5 : 1;
     const rewardVariation = (Math.ceil(Math.random() * 1500) + 500) / 100;
@@ -98,7 +96,6 @@ export default function Home() {
     }, 2600);
   };
 
-  // Catch falling $MUSK
   const catchMusk = (id, amount) => {
     setDrops((prevDrops) => {
       const newDrops = prevDrops.filter((drop) => drop.id !== id);
@@ -115,7 +112,6 @@ export default function Home() {
     });
   };
 
-  // Upgrade Elon
   const upgradeElon = () => {
     const price = Math.floor(100 * Math.pow(1.11, player.elonLevel - 1));
     if (player.muskCount < price) return;
@@ -127,7 +123,6 @@ export default function Home() {
     }));
   };
 
-  // Hire/Upgrade Grimes
   const upgradeGrimes = () => {
     const hireCost = 200;
     const levelCost = Math.floor(200 * Math.pow(1.058, player.grimesLevel));
@@ -141,7 +136,6 @@ export default function Home() {
     }));
   };
 
-  // Prestige
   const prestige = () => {
     if (player.muskCount < 10000) return;
     const goldenEarned = Math.floor(player.muskCount / 10000);
@@ -155,20 +149,18 @@ export default function Home() {
       elonLevel: 1,
       grimesLevel: 0,
       prestigeLevel: p.prestigeLevel + 1,
-      nfts: p.nfts, // Persist NFTs across prestige
+      nfts: p.nfts,
+      xAccount: p.xAccount,
     }));
     setDrops([]);
     setTasks({});
-    setLastClaimDate('');
     if (typeof window !== 'undefined') {
       localStorage.setItem('completedTasks', JSON.stringify({}));
-      localStorage.setItem('lastClaimDate', '');
     }
   };
 
-  // Stub NFT purchase
   const buyNFT = (nftId) => {
-    const price = 5000; // Placeholder—$MUSK cost
+    const price = 5000;
     if (player.muskCount < price || player.nfts.includes(nftId)) return;
     setPlayer((p) => ({
       ...p,
@@ -177,9 +169,25 @@ export default function Home() {
     }));
   };
 
-  // Task handler
+  const loginWithX = () => {
+    const mockXHandle = '@MuskTapperTest';
+    setPlayer((p) => ({
+      ...p,
+      xAccount: mockXHandle,
+    }));
+    alert(`Logged in as ${mockXHandle} (stubbed)`);
+  };
+
   const startTask = (taskId, taskUrl) => {
     const today = new Date().toISOString().split('T')[0];
+    if (!player.xAccount) {
+      alert('Please log in with X first!');
+      return;
+    }
+    if (lastClaimDate === today) {
+      alert('You’ve already claimed today—wait until tomorrow!');
+      return;
+    }
     if (tasks[taskId] === today) {
       alert('You’ve already completed this task today.');
       return;
@@ -190,7 +198,6 @@ export default function Home() {
     }, 5000);
   };
 
-  // Claim daily reward
   const claimReward = () => {
     const today = new Date().toISOString().split('T')[0];
     if (lastClaimDate === today) {
@@ -215,6 +222,10 @@ export default function Home() {
       <h1>MuskCoin Tapper</h1>
       <div id="musk_Count">{Math.floor(player.muskCount)} $MUSK</div>
       <p>Golden $MUSK: {player.goldenMusk} | Prestige Level: {player.prestigeLevel}</p>
+      <p>X Account: {player.xAccount || 'Not logged in'}</p>
+      {!player.xAccount && (
+        <button onClick={loginWithX}>Login with X</button>
+      )}
       <button id="main_musk" onClick={handleClick}>
         Tap for $MUSK!
       </button>
@@ -258,11 +269,15 @@ export default function Home() {
       </div>
       <div>
         <h2>Daily Tasks</h2>
+        <p>Last Claimed: {lastClaimDate || 'Never'}</p>
         <div id="task-x-post">
           <p>Post on X: &quot;Loving #MUSK Tapper!&quot;</p>
           <button
             onClick={() => startTask('task-x-post', 'https://x.com')}
-            disabled={tasks['task-x-post'] === new Date().toISOString().split('T')[0]}
+            disabled={
+              tasks['task-x-post'] === new Date().toISOString().split('T')[0] ||
+              lastClaimDate === new Date().toISOString().split('T')[0]
+            }
           >
             {tasks['task-x-post'] === new Date().toISOString().split('T')[0] ? 'Done' : 'Start'}
           </button>
