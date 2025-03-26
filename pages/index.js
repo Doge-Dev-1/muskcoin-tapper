@@ -19,21 +19,19 @@ export default function Home() {
   const [drops, setDrops] = useState([]);
   const [fallingId, setFallingId] = useState(0);
   const [tasks, setTasks] = useState({});
-  const [lastClaimDate, setLastClaimDate] = useState('');
+  const [taskClaims, setTaskClaims] = useState({}); // Per-task claim timestamps
 
-  // Load full player state from localStorage on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedPlayer = localStorage.getItem('player');
       const savedTasks = localStorage.getItem('completedTasks');
-      const savedDate = localStorage.getItem('lastClaimDate');
+      const savedTaskClaims = localStorage.getItem('taskClaims');
       if (savedPlayer) setPlayer(JSON.parse(savedPlayer));
       if (savedTasks) setTasks(JSON.parse(savedTasks));
-      if (savedDate) setLastClaimDate(savedDate);
+      if (savedTaskClaims) setTaskClaims(JSON.parse(savedTaskClaims));
     }
   }, []);
 
-  // CPS interval with NFT boost
   useEffect(() => {
     const cpsInterval = setInterval(() => {
       if (player.cps > 0) {
@@ -47,14 +45,13 @@ export default function Home() {
     return () => clearInterval(cpsInterval);
   }, [player.cps, player.prestigeLevel, player.nfts]);
 
-  // Save full player state to localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('player', JSON.stringify(player));
       localStorage.setItem('completedTasks', JSON.stringify(tasks));
-      localStorage.setItem('lastClaimDate', lastClaimDate);
+      localStorage.setItem('taskClaims', JSON.stringify(taskClaims));
     }
-  }, [player, tasks, lastClaimDate]);
+  }, [player, tasks, taskClaims]);
 
   const handleClick = (e) => {
     const nftCpcBoost = player.nfts.includes('tesla-coil') ? 1.5 : 1;
@@ -159,8 +156,10 @@ export default function Home() {
     }));
     setDrops([]);
     setTasks({});
+    setTaskClaims({}); // Reset all task claims on prestige
     if (typeof window !== 'undefined') {
       localStorage.setItem('completedTasks', JSON.stringify({}));
+      localStorage.setItem('taskClaims', JSON.stringify({}));
     }
   };
 
@@ -202,10 +201,6 @@ export default function Home() {
       alert('Please log in with X first!');
       return;
     }
-    if (lastClaimDate === today) {
-      alert('You’ve already claimed today—wait until tomorrow!');
-      return;
-    }
     if (tasks[taskId] === today) {
       alert('You’ve already completed this task today.');
       return;
@@ -216,20 +211,21 @@ export default function Home() {
     }, 5000);
   };
 
-  const claimReward = () => {
+  const claimTaskReward = (taskId) => {
     const today = new Date().toISOString().split('T')[0];
-    if (lastClaimDate === today) {
-      alert('You can only claim once a day.');
+    if (taskClaims[taskId] === today) {
+      alert('You’ve already claimed this task today.');
       return;
     }
-    const taskIds = ['task-x-post'];
-    const allCompleted = taskIds.every((id) => tasks[id] === today);
-    if (!allCompleted) return;
+    if (tasks[taskId] !== today) {
+      alert('Complete the task first!');
+      return;
+    }
     setPlayer((p) => ({
       ...p,
-      muskCount: p.muskCount + 200,
+      muskCount: p.muskCount + 50, // 50 $MUSK per task
     }));
-    setLastClaimDate(today);
+    setTaskClaims((c) => ({ ...c, [taskId]: today }));
   };
 
   return (
@@ -291,28 +287,63 @@ export default function Home() {
       </div>
       <div>
         <h2>Daily Tasks</h2>
-        <p>Last Claimed: {lastClaimDate || 'Never'}</p>
         <div id="task-x-post">
           <p>Post on X: &quot;Loving #MUSK Tapper!&quot;</p>
           <button
             onClick={() => startTask('task-x-post', 'https://x.com')}
-            disabled={
-              tasks['task-x-post'] === new Date().toISOString().split('T')[0] ||
-              lastClaimDate === new Date().toISOString().split('T')[0]
-            }
+            disabled={tasks['task-x-post'] === new Date().toISOString().split('T')[0]}
           >
             {tasks['task-x-post'] === new Date().toISOString().split('T')[0] ? 'Done' : 'Start'}
           </button>
+          <button
+            onClick={() => claimTaskReward('task-x-post')}
+            disabled={
+              tasks['task-x-post'] !== new Date().toISOString().split('T')[0] ||
+              taskClaims['task-x-post'] === new Date().toISOString().split('T')[0]
+            }
+          >
+            Claim 50 $MUSK
+          </button>
+          <p>Last Claimed: {taskClaims['task-x-post'] || 'Never'}</p>
         </div>
-        <button
-          onClick={claimReward}
-          disabled={
-            tasks['task-x-post'] !== new Date().toISOString().split('T')[0] ||
-            lastClaimDate === new Date().toISOString().split('T')[0]
-          }
-        >
-          Claim 200 $MUSK
-        </button>
+        <div id="task-follow-elon">
+          <p>Follow @ElonMusk on X</p>
+          <button
+            onClick={() => startTask('task-follow-elon', 'https://x.com/elonmusk')}
+            disabled={tasks['task-follow-elon'] === new Date().toISOString().split('T')[0]}
+          >
+            {tasks['task-follow-elon'] === new Date().toISOString().split('T')[0] ? 'Done' : 'Start'}
+          </button>
+          <button
+            onClick={() => claimTaskReward('task-follow-elon')}
+            disabled={
+              tasks['task-follow-elon'] !== new Date().toISOString().split('T')[0] ||
+              taskClaims['task-follow-elon'] === new Date().toISOString().split('T')[0]
+            }
+          >
+            Claim 50 $MUSK
+          </button>
+          <p>Last Claimed: {taskClaims['task-follow-elon'] || 'Never'}</p>
+        </div>
+        <div id="task-retweet-musk">
+          <p>Retweet a post with #MUSK</p>
+          <button
+            onClick={() => startTask('task-retweet-musk', 'https://x.com/search?q=%23MUSK')}
+            disabled={tasks['task-retweet-musk'] === new Date().toISOString().split('T')[0]}
+          >
+            {tasks['task-retweet-musk'] === new Date().toISOString().split('T')[0] ? 'Done' : 'Start'}
+          </button>
+          <button
+            onClick={() => claimTaskReward('task-retweet-musk')}
+            disabled={
+              tasks['task-retweet-musk'] !== new Date().toISOString().split('T')[0] ||
+              taskClaims['task-retweet-musk'] === new Date().toISOString().split('T')[0]
+            }
+          >
+            Claim 50 $MUSK
+          </button>
+          <p>Last Claimed: {taskClaims['task-retweet-musk'] || 'Never'}</p>
+        </div>
       </div>
       {drops.map((drop) => (
         <div
