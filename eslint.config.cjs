@@ -4,9 +4,9 @@ const react = require("eslint-plugin-react");
 const reactHooks = require("eslint-plugin-react-hooks");
 
 module.exports = [
-  // Ignore JSON files
+  // Ignore JSON and HTML files
   {
-    ignores: ["**/*.json"]
+    ignores: ["**/*.json", "**/*.html"]
   },
   // Old vanilla JS files (script)
   {

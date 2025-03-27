@@ -20,7 +20,7 @@ export default function Home() {
   const [fallingId, setFallingId] = useState(0);
   const [tasks, setTasks] = useState({});
   const [taskClaims, setTaskClaims] = useState({});
-  const muskButtonRef = useRef(null); // Ref for Tap button
+  const muskButtonRef = useRef(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -86,15 +86,14 @@ export default function Home() {
     const rewardVariation = (Math.ceil(Math.random() * 1500) + 500) / 100;
     const amount = Math.round(player.cpc * rewardVariation * (1 + player.prestigeLevel * 0.1) * nftCpcBoost) + starshipBoost;
 
-    // Get button position
     const buttonRect = muskButtonRef.current.getBoundingClientRect();
     const buttonX = buttonRect.left + buttonRect.width / 2;
     const buttonY = buttonRect.top;
 
     const fallingDrop = {
       id: fallingId,
-      x: buttonX + (Math.random() * 50 - 25), // ±25px around button center
-      y: buttonY - 20, // Start just above button
+      x: buttonX + (Math.random() * 50 - 25),
+      y: buttonY - 20,
       type,
       amount,
     };
@@ -243,12 +242,12 @@ export default function Home() {
   };
 
   return (
-    <div style={{ position: 'relative', height: '100vh' }}>
+    <div className="container">
       <Head>
         <title>MuskCoin Tapper</title>
       </Head>
       <h1>MuskCoin Tapper</h1>
-      <div id="musk_Count">{Math.floor(player.muskCount)} $MUSK</div>
+      <div id="musk_Count" className="counter">{Math.floor(player.muskCount)} $MUSK</div>
       <p>Golden $MUSK: {player.goldenMusk} | Prestige Level: {player.prestigeLevel}</p>
       <p>X Account: {player.xAccount || 'Not logged in'}</p>
       {!player.xAccount && (
@@ -261,7 +260,7 @@ export default function Home() {
       <button id="main_musk" ref={muskButtonRef} onClick={handleClick}>
         Tap for $MUSK!
       </button>
-      <div>
+      <div className="section">
         <p>Elon Level: {player.elonLevel} | CPC: {(player.cpc * (1 + player.prestigeLevel * 0.1) * (player.nfts.includes('tesla-coil') ? 1.5 : 1)).toFixed(1)}</p>
         <button
           onClick={upgradeElon}
@@ -270,7 +269,7 @@ export default function Home() {
           Upgrade Elon (Cost: {Math.floor(100 * Math.pow(1.11, player.elonLevel - 1))} $MUSK)
         </button>
       </div>
-      <div>
+      <div className="section">
         <p>Grimes Level: {player.grimesLevel} | CPS: {(player.cps * (1 + player.prestigeLevel * 0.1) * (player.nfts.includes('tesla-coil') ? 1.5 : 1) * (1 + player.nfts.filter((id) => id === 'hyperloop').length * 0.2)).toFixed(1)}</p>
         <button
           onClick={upgradeGrimes}
@@ -284,12 +283,12 @@ export default function Home() {
             : `Upgrade Grimes (Cost: ${Math.floor(200 * Math.pow(1.058, player.grimesLevel))} $MUSK)`}
         </button>
       </div>
-      <div>
+      <div className="section">
         <button onClick={prestige} disabled={player.muskCount < 10000}>
           Prestige (Reset for {Math.floor(player.muskCount / 10000)} Golden $MUSK)
         </button>
       </div>
-      <div>
+      <div className="section">
         <h2>NFTs</h2>
         <p>Tesla Coil: +50% CPC & CPS {player.nfts.includes('tesla-coil') ? '(Owned)' : ''}</p>
         <button
@@ -313,7 +312,7 @@ export default function Home() {
           Buy Starship (10000 $MUSK)
         </button>
       </div>
-      <div>
+      <div className="section">
         <h2>Daily Tasks</h2>
         <div id="task-x-post">
           <p>Post on X: &quot;Loving #MUSK Tapper!&quot;</p>
@@ -377,25 +376,12 @@ export default function Home() {
         <div
           key={drop.id}
           onClick={() => drop.type === 'musk' && catchMusk(drop.id, drop.amount)}
-          style={{
-            position: 'absolute',
-            left: `${drop.x}px`,
-            top: `${drop.y}px`,
-            fontSize: '20px',
-            color: drop.type === 'musk' ? 'gold' : 'white',
-            animation: drop.type === 'musk' ? 'fadeOut 2.6s ease-out' : 'fadeOut 1s ease-out',
-            cursor: drop.type === 'musk' ? 'pointer' : 'default',
-          }}
+          className={drop.type === 'musk' ? 'musk-drop' : 'click-drop'}
+          style={{ left: `${drop.x}px`, top: `${drop.y}px` }}
         >
           {drop.type === 'musk' ? `+${Math.floor(drop.amount)}` : '+1'}
         </div>
       ))}
-      <style jsx>{`
-        @keyframes fadeOut {
-          0% { opacity: 1; transform: translateY(0); }
-          100% { opacity: 0; transform: translateY(-20px); }
-        }
-      `}</style>
     </div>
   );
 }
