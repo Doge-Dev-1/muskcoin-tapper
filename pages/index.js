@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 
 export default function Home() {
@@ -19,7 +19,8 @@ export default function Home() {
   const [drops, setDrops] = useState([]);
   const [fallingId, setFallingId] = useState(0);
   const [tasks, setTasks] = useState({});
-  const [taskClaims, setTaskClaims] = useState({}); // Per-task claim timestamps
+  const [taskClaims, setTaskClaims] = useState({});
+  const muskButtonRef = useRef(null); // Ref for Tap button
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -36,9 +37,10 @@ export default function Home() {
     const cpsInterval = setInterval(() => {
       if (player.cps > 0) {
         const nftCpsBoost = player.nfts.includes('tesla-coil') ? 1.5 : 1;
+        const hyperloopBoost = player.nfts.filter((id) => id === 'hyperloop').length * 0.2;
         setPlayer((p) => ({
           ...p,
-          muskCount: p.muskCount + (p.cps * (1 + p.prestigeLevel * 0.1) * nftCpsBoost) / 10,
+          muskCount: p.muskCount + (p.cps * (1 + p.prestigeLevel * 0.1) * nftCpsBoost * (1 + hyperloopBoost)) / 10,
         }));
       }
     }, 100);
@@ -80,16 +82,23 @@ export default function Home() {
     if (roll > 1) return;
     const type = 'musk';
     const nftCpcBoost = player.nfts.includes('tesla-coil') ? 1.5 : 1;
+    const starshipBoost = player.nfts.includes('starship') ? 100 : 0;
     const rewardVariation = (Math.ceil(Math.random() * 1500) + 500) / 100;
-    const amount = Math.round(player.cpc * rewardVariation * (1 + player.prestigeLevel * 0.1) * nftCpcBoost);
+    const amount = Math.round(player.cpc * rewardVariation * (1 + player.prestigeLevel * 0.1) * nftCpcBoost) + starshipBoost;
+
+    // Get button position
+    const buttonRect = muskButtonRef.current.getBoundingClientRect();
+    const buttonX = buttonRect.left + buttonRect.width / 2;
+    const buttonY = buttonRect.top;
 
     const fallingDrop = {
       id: fallingId,
-      x: Math.floor(Math.random() * 324),
+      x: buttonX + (Math.random() * 50 - 25), // ±25px around button center
+      y: buttonY - 20, // Start just above button
       type,
       amount,
     };
-    console.log(`Falling drop: +${amount} at x:${fallingDrop.x}`);
+    console.log(`Falling drop: +${amount} at x:${fallingDrop.x}, y:${fallingDrop.y}`);
     setFallingId(fallingId + 1);
     setDrops((d) => [...d, fallingDrop]);
     setTimeout(() => {
@@ -156,7 +165,7 @@ export default function Home() {
     }));
     setDrops([]);
     setTasks({});
-    setTaskClaims({}); // Reset all task claims on prestige
+    setTaskClaims({});
     if (typeof window !== 'undefined') {
       localStorage.setItem('completedTasks', JSON.stringify({}));
       localStorage.setItem('taskClaims', JSON.stringify({}));
@@ -164,8 +173,13 @@ export default function Home() {
   };
 
   const buyNFT = (nftId) => {
-    const price = 5000;
-    if (player.muskCount < price || player.nfts.includes(nftId)) return;
+    const prices = {
+      'tesla-coil': 5000,
+      'hyperloop': 3000,
+      'starship': 10000,
+    };
+    const price = prices[nftId];
+    if (player.muskCount < price || (nftId === 'tesla-coil' && player.nfts.includes('tesla-coil')) || (nftId === 'starship' && player.nfts.includes('starship'))) return;
     if (!player.walletAddress) {
       alert('Please connect your Polygon wallet first!');
       return;
@@ -223,7 +237,7 @@ export default function Home() {
     }
     setPlayer((p) => ({
       ...p,
-      muskCount: p.muskCount + 50, // 50 $MUSK per task
+      muskCount: p.muskCount + 50,
     }));
     setTaskClaims((c) => ({ ...c, [taskId]: today }));
   };
@@ -244,7 +258,7 @@ export default function Home() {
       {!player.walletAddress && (
         <button onClick={connectWallet}>Connect Polygon Wallet</button>
       )}
-      <button id="main_musk" onClick={handleClick}>
+      <button id="main_musk" ref={muskButtonRef} onClick={handleClick}>
         Tap for $MUSK!
       </button>
       <div>
@@ -257,7 +271,7 @@ export default function Home() {
         </button>
       </div>
       <div>
-        <p>Grimes Level: {player.grimesLevel} | CPS: {(player.cps * (1 + player.prestigeLevel * 0.1) * (player.nfts.includes('tesla-coil') ? 1.5 : 1)).toFixed(1)}</p>
+        <p>Grimes Level: {player.grimesLevel} | CPS: {(player.cps * (1 + player.prestigeLevel * 0.1) * (player.nfts.includes('tesla-coil') ? 1.5 : 1) * (1 + player.nfts.filter((id) => id === 'hyperloop').length * 0.2)).toFixed(1)}</p>
         <button
           onClick={upgradeGrimes}
           disabled={
@@ -283,6 +297,20 @@ export default function Home() {
           disabled={player.muskCount < 5000 || player.nfts.includes('tesla-coil')}
         >
           Buy Tesla Coil (5000 $MUSK)
+        </button>
+        <p>Hyperloop: +20% CPS (Stackable) ({player.nfts.filter((id) => id === 'hyperloop').length} Owned)</p>
+        <button
+          onClick={() => buyNFT('hyperloop')}
+          disabled={player.muskCount < 3000}
+        >
+          Buy Hyperloop (3000 $MUSK)
+        </button>
+        <p>Starship: +100 $MUSK per Falling Drop {player.nfts.includes('starship') ? '(Owned)' : ''}</p>
+        <button
+          onClick={() => buyNFT('starship')}
+          disabled={player.muskCount < 10000 || player.nfts.includes('starship')}
+        >
+          Buy Starship (10000 $MUSK)
         </button>
       </div>
       <div>
