@@ -245,6 +245,8 @@ export default function Home() {
     <div className="container">
       <Head>
         <title>MuskCoin Tapper</title>
+        <link rel="stylesheet" href="/styles.css?v=7" />
+        <link href="https://fonts.googleapis.com/css2?family=Orbitron&display=swap" rel="stylesheet" />
       </Head>
       <h1>MuskCoin Tapper</h1>
       <div id="musk_Count" className="counter">{Math.floor(player.muskCount)} $MUSK</div>

@@ -1,90 +1,92 @@
-/* Musktap/public/styles.css */
 body {
-    font-family: 'Orbitron', 'Cambria', 'Cochin', 'Georgia', 'Times', 'Times New Roman', serif;
-    background-color: #242222; /* Classic dark */
-    color: white;
-    margin: 0;
-    padding: 10px;
-    text-align: center;
-  }
-  
-  /* Text */
-  h1 {
-    color: #ff4500; /* Tesla orange */
-    font-size: 2em;
-    text-shadow: 0 0 5px #ff4500;
-  }
-  
-  p {
-    color: #c4c4c4; /* Secondary text */
-  }
-  
-  /* Buttons */
-  button {
-    background-color: #ff4500; /* Tesla orange */
-    color: white;
-    padding: 8px 16px;
-    border: 2px solid #00b7ff; /* Cybertruck blue */
-    border-radius: 3px;
-    cursor: pointer;
-    font-family: 'Arial', 'Helvetica', sans-serif;
-    font-size: 1em;
-    transition: background-color 0.3s;
-  }
-  
-  button:hover:not(:disabled) {
-    background-color: #ff6700;
-  }
-  
-  button:disabled {
-    background-color: #4b4747; /* Classic border */
-    border-color: #4b4747;
-    cursor: not-allowed;
-  }
-  
-  #main_musk {
-    background-color: #00b7ff; /* Cybertruck blue */
-    padding: 15px 30px;
-    font-family: 'Anton', 'Impact', 'Haettenschweiler', 'Arial Narrow Bold', sans-serif;
-    font-size: 1.2em;
-    box-shadow: 0 0 10px #00b7ff;
-  }
-  
-  /* Counter */
-  .counter {
-    font-size: 1.8em;
-    color: #ffd700; /* Gold $MUSK */
-    margin: 15px 0;
-    text-shadow: 0 0 5px #ffd700;
-  }
-  
-  /* Sections */
-  .section {
-    margin: 15px 0;
-  }
-  
-  .section h2 {
-    color: #00b7ff; /* Cybertruck blue */
-    font-size: 1.3em;
-  }
-  
-  /* Drops */
-  .musk-drop {
-    position: absolute;
-    font-size: 18px;
-    color: #ffd700; /* Gold */
-    font-weight: bold;
-    animation: fadeOut 2.6s ease-out forwards;
-  }
-  
-  .click-drop {
-    position: absolute;
-    font-size: 18px;
-    color: white;
-    animation: fadeOut 1s ease-out forwards;
-  }
-  
-  @keyframes fadeOut {
-    0% { opacity: 1; transform: translateY(0); }
-    100% { opacity: 0; transform: translateY(-15px); }
-  }
+  font-family: 'Orbitron', 'Cambria', 'Cochin', 'Georgia', 'Times', 'Times New Roman', serif;
+  background: url('/assets/Dirt-Background.jpg') #242222 !important;
+  background-size: cover !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  color: white;
+  margin: 0;
+  padding: 10px;
+  text-align: center;
+  min-height: 100vh;
+}
+
+#main_musk {
+  background: url('/assets/puppy-Clicker.png') no-repeat center/contain #00b7ff !important;
+  width: 200px !important;
+  height: 200px !important;
+  border: 2px solid #00b7ff !important;
+  box-shadow: 0 0 10px #00b7ff;
+  display: block !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  text-indent: -9999px; /* Hide text if present */
+}
+
+h1 {
+  color: #ff4500;
+  font-size: 2em;
+  text-shadow: 0 0 5px #ff4500;
+}
+
+p {
+  color: #c4c4c4;
+}
+
+button {
+  background-color: #ff4500;
+  color: white;
+  padding: 8px 16px;
+  border: 2px solid #00b7ff;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: 'Arial', 'Helvetica', sans-serif;
+  font-size: 1em;
+  transition: background-color 0.3s;
+}
+
+button:hover:not(:disabled) {
+  background-color: #ff6700;
+}
+
+button:disabled {
+  background-color: #4b4747;
+  border-color: #4b4747;
+  cursor: not-allowed;
+}
+
+.counter {
+  font-size: 1.8em;
+  color: #ffd700;
+  margin: 15px 0;
+  text-shadow: 0 0 5px #ffd700;
+}
+
+.section {
+  margin: 15px 0;
+}
+
+.section h2 {
+  color: #00b7ff;
+  font-size: 1.3em;
+}
+
+.musk-drop {
+  position: absolute;
+  font-size: 18px;
+  color: #ffd700;
+  font-weight: bold;
+  animation: fadeOut 2.6s ease-out forwards;
+}
+
+.click-drop {
+  position: absolute;
+  font-size: 18px;
+  color: white;
+  animation: fadeOut 1s ease-out forwards;
+}
+
+@keyframes fadeOut {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-15px); }
+}
