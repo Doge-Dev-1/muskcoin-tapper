@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Head from 'next/head';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 
 export default function Home() {
   const [player, setPlayer] = useState({
@@ -10,11 +9,12 @@ export default function Home() {
     clicks: 0,
     fallingGrabbed: 0,
     elonLevel: 1,
-    grimesLevel: 0,
+    trumpLevel: 0,
     prestigeLevel: 0,
     nfts: [],
     xAccount: null,
     walletAddress: null,
+    starshipTier: 'default',
   });
   const [drops, setDrops] = useState([]);
   const [fallingId, setFallingId] = useState(0);
@@ -22,12 +22,37 @@ export default function Home() {
   const [taskClaims, setTaskClaims] = useState({});
   const muskButtonRef = useRef(null);
 
+  const nftSupply = {
+    'starship-bronze': 1000,
+    'starship-silver': 500,
+    'starship-gold': 250,
+    'starship-diamond': 100,
+  };
+  const [availableNFTs, setAvailableNFTs] = useState(nftSupply);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedPlayer = localStorage.getItem('player');
       const savedTasks = localStorage.getItem('completedTasks');
       const savedTaskClaims = localStorage.getItem('taskClaims');
-      if (savedPlayer) setPlayer(JSON.parse(savedPlayer));
+      if (savedPlayer) {
+        const parsedPlayer = JSON.parse(savedPlayer);
+        setPlayer({
+          muskCount: isNaN(parsedPlayer.muskCount) ? 0 : parsedPlayer.muskCount,
+          cpc: isNaN(parsedPlayer.cpc) ? 1 : parsedPlayer.cpc,
+          cps: isNaN(parsedPlayer.cps) ? 0 : parsedPlayer.cps,
+          goldenMusk: isNaN(parsedPlayer.goldenMusk) ? 0 : parsedPlayer.goldenMusk,
+          clicks: isNaN(parsedPlayer.clicks) ? 0 : parsedPlayer.clicks,
+          fallingGrabbed: isNaN(parsedPlayer.fallingGrabbed) ? 0 : parsedPlayer.fallingGrabbed,
+          elonLevel: isNaN(parsedPlayer.elonLevel) ? 1 : parsedPlayer.elonLevel,
+          trumpLevel: isNaN(parsedPlayer.trumpLevel) ? 0 : parsedPlayer.trumpLevel,
+          prestigeLevel: isNaN(parsedPlayer.prestigeLevel) ? 0 : parsedPlayer.prestigeLevel,
+          nfts: Array.isArray(parsedPlayer.nfts) ? parsedPlayer.nfts : [],
+          xAccount: parsedPlayer.xAccount || null,
+          walletAddress: parsedPlayer.walletAddress || null,
+          starshipTier: parsedPlayer.starshipTier || 'default',
+        });
+      }
       if (savedTasks) setTasks(JSON.parse(savedTasks));
       if (savedTaskClaims) setTaskClaims(JSON.parse(savedTaskClaims));
     }
@@ -38,12 +63,27 @@ export default function Home() {
       if (player.cps > 0) {
         const nftCpsBoost = player.nfts.includes('tesla-coil') ? 1.5 : 1;
         const hyperloopBoost = player.nfts.filter((id) => id === 'hyperloop').length * 0.2;
+        const starshipBoost = calculateStarshipBoost(player.nfts);
+        const cpsIncrement = (player.cps * (1 + player.prestigeLevel * 0.1) * nftCpsBoost * (1 + hyperloopBoost) * (1 + starshipBoost)) / 10;
+        if (isNaN(cpsIncrement)) return;
         setPlayer((p) => ({
           ...p,
-          muskCount: p.muskCount + (p.cps * (1 + p.prestigeLevel * 0.1) * nftCpsBoost * (1 + hyperloopBoost)) / 10,
+          muskCount: p.muskCount + cpsIncrement,
         }));
       }
     }, 100);
+
+    setPlayer((p) => {
+      let newTier = 'default';
+      if (p.prestigeLevel >= 75) newTier = 'diamond';
+      else if (p.prestigeLevel >= 35) newTier = 'gold';
+      else if (p.prestigeLevel >= 20) newTier = 'silver';
+      else if (p.prestigeLevel >= 10) newTier = 'bronze';
+      const imagePath = `/assets/${newTier === 'default' ? 'musk_token.png' : newTier + '_starship.png'}`;
+      console.log(`Setting starshipTier to: ${newTier}, Image URL: ${imagePath}`);
+      return { ...p, starshipTier: newTier };
+    });
+
     return () => clearInterval(cpsInterval);
   }, [player.cps, player.prestigeLevel, player.nfts]);
 
@@ -57,7 +97,9 @@ export default function Home() {
 
   const handleClick = (e) => {
     const nftCpcBoost = player.nfts.includes('tesla-coil') ? 1.5 : 1;
-    const cpcWithPrestige = player.cpc * (1 + player.prestigeLevel * 0.1) * nftCpcBoost;
+    const starshipBoost = calculateStarshipBoost(player.nfts);
+    const cpcWithPrestige = player.cpc * (1 + player.prestigeLevel * 0.1) * nftCpcBoost * (1 + starshipBoost);
+    if (isNaN(cpcWithPrestige)) return;
     setPlayer((p) => ({
       ...p,
       muskCount: p.muskCount + cpcWithPrestige,
@@ -78,13 +120,17 @@ export default function Home() {
 
   const fallingMusk = () => {
     const roll = Math.ceil(Math.random() * 100);
-    console.log(`Falling roll: ${roll}`);
     if (roll > 1) return;
     const type = 'musk';
     const nftCpcBoost = player.nfts.includes('tesla-coil') ? 1.5 : 1;
-    const starshipBoost = player.nfts.includes('starship') ? 100 : 0;
+    const starshipDropBoost =
+      player.nfts.includes('starship-diamond') ? 150 :
+      player.nfts.includes('starship-gold') ? 100 :
+      player.nfts.includes('starship-silver') ? 75 :
+      player.nfts.includes('starship-bronze') ? 50 : 0;
     const rewardVariation = (Math.ceil(Math.random() * 1500) + 500) / 100;
-    const amount = Math.round(player.cpc * rewardVariation * (1 + player.prestigeLevel * 0.1) * nftCpcBoost) + starshipBoost;
+    const amount = Math.round(player.cpc * rewardVariation * (1 + player.prestigeLevel * 0.1) * nftCpcBoost) + starshipDropBoost;
+    if (isNaN(amount)) return;
 
     const buttonRect = muskButtonRef.current.getBoundingClientRect();
     const buttonX = buttonRect.left + buttonRect.width / 2;
@@ -97,7 +143,6 @@ export default function Home() {
       type,
       amount,
     };
-    console.log(`Falling drop: +${amount} at x:${fallingDrop.x}, y:${fallingDrop.y}`);
     setFallingId(fallingId + 1);
     setDrops((d) => [...d, fallingDrop]);
     setTimeout(() => {
@@ -108,22 +153,18 @@ export default function Home() {
   const catchMusk = (id, amount) => {
     setDrops((prevDrops) => {
       const newDrops = prevDrops.filter((drop) => drop.id !== id);
-      setPlayer((p) => {
-        const newCount = p.muskCount + amount;
-        console.log(`Caught: +${amount}, new total: ${newCount}`);
-        return {
-          ...p,
-          muskCount: newCount,
-          fallingGrabbed: p.fallingGrabbed + 1,
-        };
-      });
+      setPlayer((p) => ({
+        ...p,
+        muskCount: p.muskCount + (isNaN(amount) ? 0 : amount),
+        fallingGrabbed: p.fallingGrabbed + 1,
+      }));
       return newDrops;
     });
   };
 
   const upgradeElon = () => {
     const price = Math.floor(100 * Math.pow(1.11, player.elonLevel - 1));
-    if (player.muskCount < price) return;
+    if (player.muskCount < price || isNaN(price)) return;
     setPlayer((p) => ({
       ...p,
       muskCount: p.muskCount - price,
@@ -132,21 +173,21 @@ export default function Home() {
     }));
   };
 
-  const upgradeGrimes = () => {
+  const upgradeTrump = () => {
     const hireCost = 200;
-    const levelCost = Math.floor(200 * Math.pow(1.058, player.grimesLevel));
-    const price = player.grimesLevel === 0 ? hireCost : levelCost;
-    if (player.muskCount < price) return;
+    const levelCost = Math.floor(200 * Math.pow(1.058, player.trumpLevel));
+    const price = player.trumpLevel === 0 ? hireCost : levelCost;
+    if (player.muskCount < price || isNaN(price)) return;
     setPlayer((p) => ({
       ...p,
       muskCount: p.muskCount - price,
-      grimesLevel: p.grimesLevel + 1,
+      trumpLevel: p.trumpLevel + 1,
       cps: p.cps + 1,
     }));
   };
 
   const prestige = () => {
-    if (player.muskCount < 10000) return;
+    if (player.muskCount < 10000 || isNaN(player.muskCount)) return;
     const goldenEarned = Math.floor(player.muskCount / 10000);
     setPlayer((p) => ({
       muskCount: 0,
@@ -156,11 +197,12 @@ export default function Home() {
       clicks: 0,
       fallingGrabbed: 0,
       elonLevel: 1,
-      grimesLevel: 0,
+      trumpLevel: 0,
       prestigeLevel: p.prestigeLevel + 1,
       nfts: p.nfts,
       xAccount: p.xAccount,
       walletAddress: p.walletAddress,
+      starshipTier: p.starshipTier,
     }));
     setDrops([]);
     setTasks({});
@@ -171,14 +213,25 @@ export default function Home() {
     }
   };
 
+  const calculateStarshipBoost = (nfts) => {
+    if (nfts.includes('starship-diamond')) return 0.5;
+    if (nfts.includes('starship-gold')) return 0.3;
+    if (nfts.includes('starship-silver')) return 0.2;
+    if (nfts.includes('starship-bronze')) return 0.1;
+    return 0;
+  };
+
   const buyNFT = (nftId) => {
     const prices = {
       'tesla-coil': 5000,
       'hyperloop': 3000,
-      'starship': 10000,
+      'starship-bronze': 5000,
+      'starship-silver': 7500,
+      'starship-gold': 10000,
+      'starship-diamond': 15000,
     };
     const price = prices[nftId];
-    if (player.muskCount < price || (nftId === 'tesla-coil' && player.nfts.includes('tesla-coil')) || (nftId === 'starship' && player.nfts.includes('starship'))) return;
+    if (player.muskCount < price || availableNFTs[nftId] <= 0 || player.nfts.includes(nftId)) return;
     if (!player.walletAddress) {
       alert('Please connect your Polygon wallet first!');
       return;
@@ -186,6 +239,23 @@ export default function Home() {
     setPlayer((p) => ({
       ...p,
       muskCount: p.muskCount - price,
+      nfts: [...p.nfts, nftId],
+    }));
+    setAvailableNFTs((a) => ({ ...a, [nftId]: a[nftId] - 1 }));
+  };
+
+  const generateNFT = (tier) => {
+    const nftId = `starship-${tier}`;
+    const costs = { bronze: 10000, silver: 20000, gold: 35000, diamond: 75000 };
+    const minGoldenMusk = { bronze: 10, silver: 20, gold: 35, diamond: 75 };
+    if (player.muskCount < costs[tier] || player.goldenMusk < minGoldenMusk[tier] || player.nfts.includes(nftId)) return;
+    if (!player.walletAddress) {
+      alert('Please connect your Polygon wallet first!');
+      return;
+    }
+    setPlayer((p) => ({
+      ...p,
+      muskCount: p.muskCount - costs[tier],
       nfts: [...p.nfts, nftId],
     }));
   };
@@ -206,6 +276,18 @@ export default function Home() {
       walletAddress: mockWallet,
     }));
     alert(`Connected wallet: ${mockWallet} (stubbed)`);
+  };
+
+  const buyPresale = () => {
+    if (!player.xAccount) {
+      alert('Login with X to join presale!');
+      return;
+    }
+    setPlayer((p) => ({
+      ...p,
+      muskCount: p.muskCount + 10,
+    }));
+    alert('Presale: +10 $MUSK (mock)');
   };
 
   const startTask = (taskId, taskUrl) => {
@@ -241,13 +323,47 @@ export default function Home() {
     setTaskClaims((c) => ({ ...c, [taskId]: today }));
   };
 
+  const buttonStyle = useMemo(() => ({
+    position: 'relative',
+    border: '2px solid blue',
+    width: '200px',
+    height: '200px',
+    backgroundColor: 'transparent',
+    cursor: 'pointer',
+    padding: 0,
+    overflow: 'hidden',
+  }), []);
+
+  const imageStyle = useMemo(() => ({
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    zIndex: 1,
+  }), []);
+
+  const textStyle = useMemo(() => ({
+    position: 'relative',
+    zIndex: 2,
+    color: 'white',
+    fontSize: '16px',
+    textAlign: 'center',
+    lineHeight: '200px',
+    margin: 0,
+    textShadow: '2px 2px 4px rgba(0, 0, 0, 0.8)',
+  }), []);
+
+  const tapperImage = `/assets/${player.starshipTier === 'default' ? 'musk_token.png' : player.starshipTier + '_starship.png'}`;
+
+  // Log the button style only once on mount
+  useEffect(() => {
+    console.log('Button style applied:', buttonStyle);
+  }, [buttonStyle]);
+
   return (
     <div className="container">
-      <Head>
-        <title>MuskCoin Tapper</title>
-        <link rel="stylesheet" href="/styles.css?v=7" />
-        <link href="https://fonts.googleapis.com/css2?family=Orbitron&display=swap" rel="stylesheet" />
-      </Head>
       <h1>MuskCoin Tapper</h1>
       <div id="musk_Count" className="counter">{Math.floor(player.muskCount)} $MUSK</div>
       <p>Golden $MUSK: {player.goldenMusk} | Prestige Level: {player.prestigeLevel}</p>
@@ -259,11 +375,19 @@ export default function Home() {
       {!player.walletAddress && (
         <button onClick={connectWallet}>Connect Polygon Wallet</button>
       )}
-      <button id="main_musk" ref={muskButtonRef} onClick={handleClick}>
-        Tap for $MUSK!
+      <p>Starship Tier: {player.starshipTier}</p>
+      <button
+        id="main_musk"
+        className="main-musk-button"
+        ref={muskButtonRef}
+        onClick={handleClick}
+        style={buttonStyle}
+      >
+        <img src={tapperImage} alt="Tapper Icon" style={imageStyle} />
+        <span style={textStyle}>Zap for $MUSK!</span>
       </button>
       <div className="section">
-        <p>Elon Level: {player.elonLevel} | CPC: {(player.cpc * (1 + player.prestigeLevel * 0.1) * (player.nfts.includes('tesla-coil') ? 1.5 : 1)).toFixed(1)}</p>
+        <p>Elon Level: {player.elonLevel} | CPC: {(player.cpc * (1 + player.prestigeLevel * 0.1) * (player.nfts.includes('tesla-coil') ? 1.5 : 1) * (1 + calculateStarshipBoost(player.nfts))).toFixed(1)}</p>
         <button
           onClick={upgradeElon}
           disabled={player.muskCount < Math.floor(100 * Math.pow(1.11, player.elonLevel - 1))}
@@ -272,23 +396,26 @@ export default function Home() {
         </button>
       </div>
       <div className="section">
-        <p>Grimes Level: {player.grimesLevel} | CPS: {(player.cps * (1 + player.prestigeLevel * 0.1) * (player.nfts.includes('tesla-coil') ? 1.5 : 1) * (1 + player.nfts.filter((id) => id === 'hyperloop').length * 0.2)).toFixed(1)}</p>
+        <p>Trump Level: {player.trumpLevel} | CPS: {(player.cps * (1 + player.prestigeLevel * 0.1) * (player.nfts.includes('tesla-coil') ? 1.5 : 1) * (1 + player.nfts.filter((id) => id === 'hyperloop').length * 0.2) * (1 + calculateStarshipBoost(player.nfts))).toFixed(1)}</p>
         <button
-          onClick={upgradeGrimes}
+          onClick={upgradeTrump}
           disabled={
             player.muskCount <
-            (player.grimesLevel === 0 ? 200 : Math.floor(200 * Math.pow(1.058, player.grimesLevel)))
+            (player.trumpLevel === 0 ? 200 : Math.floor(200 * Math.pow(1.058, player.trumpLevel)))
           }
         >
-          {player.grimesLevel === 0
-            ? 'Hire Grimes (200 $MUSK)'
-            : `Upgrade Grimes (Cost: ${Math.floor(200 * Math.pow(1.058, player.grimesLevel))} $MUSK)`}
+          {player.trumpLevel === 0
+            ? 'Hire Trump (200 $MUSK)'
+            : `Upgrade Trump (Cost: ${Math.floor(200 * Math.pow(1.058, player.trumpLevel))} $MUSK)`}
         </button>
       </div>
       <div className="section">
         <button onClick={prestige} disabled={player.muskCount < 10000}>
           Prestige (Reset for {Math.floor(player.muskCount / 10000)} Golden $MUSK)
         </button>
+      </div>
+      <div className="section">
+        <button onClick={buyPresale}>Presale: Buy 10 $MUSK</button>
       </div>
       <div className="section">
         <h2>NFTs</h2>
@@ -306,12 +433,57 @@ export default function Home() {
         >
           Buy Hyperloop (3000 $MUSK)
         </button>
-        <p>Starship: +100 $MUSK per Falling Drop {player.nfts.includes('starship') ? '(Owned)' : ''}</p>
+        <p>Starship Bronze: +10% All Bonuses, +50 Drop ({availableNFTs['starship-bronze']} left) {player.nfts.includes('starship-bronze') ? '(Owned)' : ''}</p>
         <button
-          onClick={() => buyNFT('starship')}
-          disabled={player.muskCount < 10000 || player.nfts.includes('starship')}
+          onClick={() => buyNFT('starship-bronze')}
+          disabled={player.muskCount < 5000 || availableNFTs['starship-bronze'] <= 0 || player.nfts.includes('starship-bronze')}
         >
-          Buy Starship (10000 $MUSK)
+          Buy (5000 $MUSK)
+        </button>
+        <button
+          onClick={() => generateNFT('bronze')}
+          disabled={player.muskCount < 10000 || player.goldenMusk < 10 || player.nfts.includes('starship-bronze')}
+        >
+          Generate (10000 $MUSK)
+        </button>
+        <p>Starship Silver: +20% All Bonuses, +75 Drop ({availableNFTs['starship-silver']} left) {player.nfts.includes('starship-silver') ? '(Owned)' : ''}</p>
+        <button
+          onClick={() => buyNFT('starship-silver')}
+          disabled={player.muskCount < 7500 || availableNFTs['starship-silver'] <= 0 || player.nfts.includes('starship-silver')}
+        >
+          Buy (7500 $MUSK)
+        </button>
+        <button
+          onClick={() => generateNFT('silver')}
+          disabled={player.muskCount < 20000 || player.goldenMusk < 20 || player.nfts.includes('starship-silver')}
+        >
+          Generate (20000 $MUSK)
+        </button>
+        <p>Starship Gold: +30% All Bonuses, +100 Drop ({availableNFTs['starship-gold']} left) {player.nfts.includes('starship-gold') ? '(Owned)' : ''}</p>
+        <button
+          onClick={() => buyNFT('starship-gold')}
+          disabled={player.muskCount < 10000 || availableNFTs['starship-gold'] <= 0 || player.nfts.includes('starship-gold')}
+        >
+          Buy (10000 $MUSK)
+        </button>
+        <button
+          onClick={() => generateNFT('gold')}
+          disabled={player.muskCount < 35000 || player.goldenMusk < 35 || player.nfts.includes('starship-gold')}
+        >
+          Generate (35000 $MUSK)
+        </button>
+        <p>Starship Diamond: +50% All Bonuses, +150 Drop ({availableNFTs['starship-diamond']} left) {player.nfts.includes('starship-diamond') ? '(Owned)' : ''}</p>
+        <button
+          onClick={() => buyNFT('starship-diamond')}
+          disabled={player.muskCount < 15000 || availableNFTs['starship-diamond'] <= 0 || player.nfts.includes('starship-diamond')}
+        >
+          Buy (15000 $MUSK)
+        </button>
+        <button
+          onClick={() => generateNFT('diamond')}
+          disabled={player.muskCount < 75000 || player.goldenMusk < 75 || player.nfts.includes('starship-diamond')}
+        >
+          Generate (75000 $MUSK)
         </button>
       </div>
       <div className="section">
