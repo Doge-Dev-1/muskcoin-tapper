@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 
+console.log('Using updated index.js - Version 2');
+
 export default function Home() {
   const [player, setPlayer] = useState({
     muskCount: 0,
@@ -30,13 +32,25 @@ export default function Home() {
   };
   const [availableNFTs, setAvailableNFTs] = useState(nftSupply);
 
+  // X OAuth Config with your Client ID
+  const X_CLIENT_ID = 'ak1Va19OV25BZ2d1X1FIVDNya2g6MTpjaQ';
+  const REDIRECT_URI = 'http://localhost:3000';
+  const X_AUTH_URL = `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${X_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&scope=users.read%20tweet.read&state=state&code_challenge=challenge&code_challenge_method=plain`;
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Force-clear localStorage on load
+      console.log('Clearing localStorage...');
+      localStorage.removeItem('player');
+      localStorage.removeItem('completedTasks');
+      localStorage.removeItem('taskClaims');
+
       const savedPlayer = localStorage.getItem('player');
       const savedTasks = localStorage.getItem('completedTasks');
       const savedTaskClaims = localStorage.getItem('taskClaims');
       if (savedPlayer) {
         const parsedPlayer = JSON.parse(savedPlayer);
+        console.log('Loaded player from localStorage:', parsedPlayer);
         setPlayer({
           muskCount: isNaN(parsedPlayer.muskCount) ? 0 : parsedPlayer.muskCount,
           cpc: isNaN(parsedPlayer.cpc) ? 1 : parsedPlayer.cpc,
@@ -52,9 +66,24 @@ export default function Home() {
           walletAddress: parsedPlayer.walletAddress || null,
           starshipTier: parsedPlayer.starshipTier || 'default',
         });
+      } else {
+        console.log('No player data in localStorage.');
       }
       if (savedTasks) setTasks(JSON.parse(savedTasks));
       if (savedTaskClaims) setTaskClaims(JSON.parse(savedTaskClaims));
+
+      // Handle X OAuth redirect with more debugging
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      const state = urlParams.get('state');
+      console.log('URL after redirect:', window.location.href);
+      console.log('URL Parameters - code:', code, 'state:', state);
+      if (code) { // Temporarily remove state check
+        console.log('Handling X OAuth callback with code:', code);
+        handleXCallback(code);
+      } else {
+        console.log('No code in URL.');
+      }
     }
   }, []);
 
@@ -87,9 +116,13 @@ export default function Home() {
     return () => clearInterval(cpsInterval);
   }, [player.cps, player.prestigeLevel, player.nfts]);
 
+  // Modified useEffect to avoid saving xAccount until we log in with real X
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('player', JSON.stringify(player));
+      // Only save if xAccount is not the dummy account
+      if (player.xAccount !== '@MuskTapperTest') {
+        localStorage.setItem('player', JSON.stringify(player));
+      }
       localStorage.setItem('completedTasks', JSON.stringify(tasks));
       localStorage.setItem('taskClaims', JSON.stringify(taskClaims));
     }
@@ -261,12 +294,50 @@ export default function Home() {
   };
 
   const loginWithX = () => {
-    const mockXHandle = '@MuskTapperTest';
+    console.log('Attempting to redirect to X OAuth:', X_AUTH_URL);
+    try {
+      window.location.href = X_AUTH_URL; // Redirect to X for auth
+    } catch (error) {
+      console.error('Redirect failed:', error);
+    }
+  };
+
+  const logoutFromX = () => {
     setPlayer((p) => ({
       ...p,
-      xAccount: mockXHandle,
+      xAccount: null,
     }));
-    alert(`Logged in as ${mockXHandle} (stubbed)`);
+    localStorage.removeItem('player'); // Ensure it's cleared
+    console.log('Logged out from X, cleared xAccount.');
+  };
+
+  const handleXCallback = async (code) => {
+    try {
+      console.log('Sending POST to /api/x-auth with code:', code);
+      const response = await fetch('/api/x-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, redirect_uri: REDIRECT_URI }),
+      });
+      console.log('Response from /api/x-auth:', response.status, response.statusText);
+      const data = await response.json();
+      console.log('Data from /api/x-auth:', data);
+      if (data.user) {
+        console.log('User data from X:', data.user);
+        setPlayer((p) => ({
+          ...p,
+          xAccount: `@${data.user.username}`,
+        }));
+        alert(`Logged in as @${data.user.username}`);
+        window.history.replaceState({}, document.title, REDIRECT_URI); // Clean URL
+      } else {
+        console.log('No user data in response:', data);
+        alert('Login failed: No user data received.');
+      }
+    } catch (error) {
+      console.error('X login failed:', error);
+      alert('Login failed—check console for details.');
+    }
   };
 
   const connectWallet = () => {
@@ -357,7 +428,6 @@ export default function Home() {
 
   const tapperImage = `/assets/${player.starshipTier === 'default' ? 'musk_token.png' : player.starshipTier + '_starship.png'}`;
 
-  // Log the button style only once on mount
   useEffect(() => {
     console.log('Button style applied:', buttonStyle);
   }, [buttonStyle]);
@@ -368,8 +438,9 @@ export default function Home() {
       <div id="musk_Count" className="counter">{Math.floor(player.muskCount)} $MUSK</div>
       <p>Golden $MUSK: {player.goldenMusk} | Prestige Level: {player.prestigeLevel}</p>
       <p>X Account: {player.xAccount || 'Not logged in'}</p>
-      {!player.xAccount && (
-        <button onClick={loginWithX}>Login with X</button>
+      <button onClick={loginWithX}>Login with X</button>
+      {player.xAccount && (
+        <button onClick={logoutFromX}>Logout from X</button>
       )}
       <p>Wallet: {player.walletAddress || 'Not connected'}</p>
       {!player.walletAddress && (
