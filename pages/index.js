@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { supabase } from '../supabase';
 
-console.log('Using updated index.js - Version 2');
+console.log('Using updated index.js - Version 6.9.2');
 
 export default function Home() {
   const [player, setPlayer] = useState({
@@ -15,13 +16,15 @@ export default function Home() {
     prestigeLevel: 0,
     nfts: [],
     xAccount: null,
+    xId: null,
     walletAddress: null,
     starshipTier: 'default',
+    tasks: {},
+    taskClaims: {},
   });
   const [drops, setDrops] = useState([]);
   const [fallingId, setFallingId] = useState(0);
-  const [tasks, setTasks] = useState({});
-  const [taskClaims, setTaskClaims] = useState({});
+  const [isLoading, setIsLoading] = useState(false); // Add loading state to prevent premature saves
   const muskButtonRef = useRef(null);
 
   const nftSupply = {
@@ -32,61 +35,140 @@ export default function Home() {
   };
   const [availableNFTs, setAvailableNFTs] = useState(nftSupply);
 
-  // X OAuth Config with your Client ID
   const X_CLIENT_ID = 'ak1Va19OV25BZ2d1X1FIVDNya2g6MTpjaQ';
-  const REDIRECT_URI = 'http://localhost:3000';
+  const REDIRECT_URI = 'http://localhost:3000'; // Update to Vercel URL later
   const X_AUTH_URL = `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${X_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&scope=users.read%20tweet.read&state=state&code_challenge=challenge&code_challenge_method=plain`;
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Force-clear localStorage on load
-      console.log('Clearing localStorage...');
-      localStorage.removeItem('player');
-      localStorage.removeItem('completedTasks');
-      localStorage.removeItem('taskClaims');
-
-      const savedPlayer = localStorage.getItem('player');
-      const savedTasks = localStorage.getItem('completedTasks');
-      const savedTaskClaims = localStorage.getItem('taskClaims');
-      if (savedPlayer) {
-        const parsedPlayer = JSON.parse(savedPlayer);
-        console.log('Loaded player from localStorage:', parsedPlayer);
-        setPlayer({
-          muskCount: isNaN(parsedPlayer.muskCount) ? 0 : parsedPlayer.muskCount,
-          cpc: isNaN(parsedPlayer.cpc) ? 1 : parsedPlayer.cpc,
-          cps: isNaN(parsedPlayer.cps) ? 0 : parsedPlayer.cps,
-          goldenMusk: isNaN(parsedPlayer.goldenMusk) ? 0 : parsedPlayer.goldenMusk,
-          clicks: isNaN(parsedPlayer.clicks) ? 0 : parsedPlayer.clicks,
-          fallingGrabbed: isNaN(parsedPlayer.fallingGrabbed) ? 0 : parsedPlayer.fallingGrabbed,
-          elonLevel: isNaN(parsedPlayer.elonLevel) ? 1 : parsedPlayer.elonLevel,
-          trumpLevel: isNaN(parsedPlayer.trumpLevel) ? 0 : parsedPlayer.trumpLevel,
-          prestigeLevel: isNaN(parsedPlayer.prestigeLevel) ? 0 : parsedPlayer.prestigeLevel,
-          nfts: Array.isArray(parsedPlayer.nfts) ? parsedPlayer.nfts : [],
-          xAccount: parsedPlayer.xAccount || null,
-          walletAddress: parsedPlayer.walletAddress || null,
-          starshipTier: parsedPlayer.starshipTier || 'default',
-        });
+  // Load user data from Supabase
+  const loadUserData = useCallback(async (xId) => {
+    if (!xId) {
+      console.log('No xId, skipping load.');
+      return;
+    }
+    setIsLoading(true); // Set loading state to true
+    try {
+      console.log(`Fetching data for xId: ${xId}`);
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', xId)
+        .single();
+      if (error && error.code !== 'PGRST116') throw error;
+      if (data) {
+        console.log('Loaded from Supabase:', data);
+        setPlayer((p) => ({
+          ...p,
+          muskCount: data.musk_count || 0,
+          cpc: data.cpc || 1,
+          cps: data.cps || 0,
+          goldenMusk: data.golden_musk || 0,
+          clicks: data.clicks || 0,
+          fallingGrabbed: data.falling_grabbed || 0,
+          elonLevel: data.elon_level || 1,
+          trumpLevel: data.trump_level || 0,
+          prestigeLevel: data.prestige_level || 0,
+          nfts: data.nfts || [],
+          walletAddress: data.wallet_address || null,
+          starshipTier: data.starship_tier || 'default',
+          tasks: data.tasks || {},
+          taskClaims: data.task_claims || {},
+        }));
       } else {
-        console.log('No player data in localStorage.');
+        console.log('New user, initializing in Supabase');
+        const newUser = {
+          id: xId,
+          x_account: player.xAccount,
+          musk_count: 0,
+          cpc: 1,
+          cps: 0,
+          golden_musk: 0,
+          clicks: 0,
+          falling_grabbed: 0,
+          elon_level: 1,
+          trump_level: 0,
+          prestige_level: 0,
+          nfts: [],
+          wallet_address: null,
+          starship_tier: 'default',
+          tasks: {},
+          task_claims: {},
+        };
+        await supabase.from('users').upsert(newUser);
+        setPlayer((p) => ({
+          ...p,
+          ...newUser,
+        }));
       }
-      if (savedTasks) setTasks(JSON.parse(savedTasks));
-      if (savedTaskClaims) setTaskClaims(JSON.parse(savedTaskClaims));
+    } catch (error) {
+      console.error('Supabase load error:', error);
+    } finally {
+      setIsLoading(false); // Reset loading state
+    }
+  }, [player.xAccount]);
 
-      // Handle X OAuth redirect with more debugging
+  // Save data to Supabase
+  const saveUserData = useCallback(async () => {
+    if (!player.xId) {
+      console.log('No xId, skipping save.');
+      return;
+    }
+    if (isLoading) {
+      console.log('Still loading data, skipping save to avoid overwrite.');
+      return;
+    }
+    try {
+      const dataToSave = {
+        id: player.xId,
+        x_account: player.xAccount,
+        musk_count: player.muskCount,
+        cpc: player.cpc,
+        cps: player.cps,
+        golden_musk: player.goldenMusk,
+        clicks: player.clicks,
+        falling_grabbed: player.fallingGrabbed,
+        elon_level: player.elonLevel,
+        trump_level: player.trumpLevel,
+        prestige_level: player.prestigeLevel,
+        nfts: player.nfts,
+        wallet_address: player.walletAddress,
+        starship_tier: player.starshipTier,
+        tasks: player.tasks,
+        task_claims: player.taskClaims,
+      };
+      console.log(`Saving data for xId: ${player.xId} Data: ${JSON.stringify(dataToSave)}`);
+      const { data, error } = await supabase.from('users').upsert(dataToSave);
+      if (error) throw error;
+      console.log('Saved to Supabase:', data);
+    } catch (error) {
+      console.error('Supabase save error:', error);
+    }
+  }, [player, isLoading]);
+
+  // Load user data on xId change
+  useEffect(() => {
+    if (player.xId) {
+      loadUserData(player.xId);
+    }
+
+    // Handle X OAuth redirect
+    if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get('code');
-      const state = urlParams.get('state');
-      console.log('URL after redirect:', window.location.href);
-      console.log('URL Parameters - code:', code, 'state:', state);
-      if (code) { // Temporarily remove state check
-        console.log('Handling X OAuth callback with code:', code);
+      if (code) {
+        console.log('Handling X OAuth with code:', code);
         handleXCallback(code);
-      } else {
-        console.log('No code in URL.');
       }
     }
-  }, []);
+  }, [player.xId, loadUserData]);
 
+  // Save data when specific fields change
+  useEffect(() => {
+    if (player.xId && !isLoading) {
+      saveUserData();
+    }
+  }, [player.muskCount, player.clicks, player.taskClaims, player.xId, saveUserData, isLoading]);
+
+  // CPS and Starship Tier Update
   useEffect(() => {
     const cpsInterval = setInterval(() => {
       if (player.cps > 0) {
@@ -115,18 +197,6 @@ export default function Home() {
 
     return () => clearInterval(cpsInterval);
   }, [player.cps, player.prestigeLevel, player.nfts]);
-
-  // Modified useEffect to avoid saving xAccount until we log in with real X
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Only save if xAccount is not the dummy account
-      if (player.xAccount !== '@MuskTapperTest') {
-        localStorage.setItem('player', JSON.stringify(player));
-      }
-      localStorage.setItem('completedTasks', JSON.stringify(tasks));
-      localStorage.setItem('taskClaims', JSON.stringify(taskClaims));
-    }
-  }, [player, tasks, taskClaims]);
 
   const handleClick = (e) => {
     const nftCpcBoost = player.nfts.includes('tesla-coil') ? 1.5 : 1;
@@ -234,16 +304,13 @@ export default function Home() {
       prestigeLevel: p.prestigeLevel + 1,
       nfts: p.nfts,
       xAccount: p.xAccount,
+      xId: p.xId,
       walletAddress: p.walletAddress,
       starshipTier: p.starshipTier,
+      tasks: {},
+      taskClaims: {},
     }));
     setDrops([]);
-    setTasks({});
-    setTaskClaims({});
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('completedTasks', JSON.stringify({}));
-      localStorage.setItem('taskClaims', JSON.stringify({}));
-    }
   };
 
   const calculateStarshipBoost = (nfts) => {
@@ -296,19 +363,24 @@ export default function Home() {
   const loginWithX = () => {
     console.log('Attempting to redirect to X OAuth:', X_AUTH_URL);
     try {
-      window.location.href = X_AUTH_URL; // Redirect to X for auth
+      window.location.href = X_AUTH_URL;
     } catch (error) {
       console.error('Redirect failed:', error);
     }
   };
 
   const logoutFromX = () => {
-    setPlayer((p) => ({
-      ...p,
-      xAccount: null,
-    }));
-    localStorage.removeItem('player'); // Ensure it's cleared
-    console.log('Logged out from X, cleared xAccount.');
+    setPlayer((p) => {
+      console.log(`Player state before logout: ${JSON.stringify(p)}`);
+      const newState = {
+        ...p,
+        xAccount: null,
+        xId: null,
+      };
+      console.log(`Player state after logout: ${JSON.stringify(newState)}`);
+      return newState;
+    });
+    console.log('Logged out from X, cleared xAccount and xId.');
   };
 
   const handleXCallback = async (code) => {
@@ -324,12 +396,17 @@ export default function Home() {
       console.log('Data from /api/x-auth:', data);
       if (data.user) {
         console.log('User data from X:', data.user);
-        setPlayer((p) => ({
-          ...p,
-          xAccount: `@${data.user.username}`,
-        }));
+        setPlayer((p) => {
+          const newState = {
+            ...p,
+            xAccount: `@${data.user.username}`,
+            xId: data.user.id,
+          };
+          console.log(`Player state after X login: ${JSON.stringify(newState)}`);
+          return newState;
+        });
         alert(`Logged in as @${data.user.username}`);
-        window.history.replaceState({}, document.title, REDIRECT_URI); // Clean URL
+        window.history.replaceState({}, document.title, REDIRECT_URI);
       } else {
         console.log('No user data in response:', data);
         alert('Login failed: No user data received.');
@@ -367,31 +444,34 @@ export default function Home() {
       alert('Please log in with X first!');
       return;
     }
-    if (tasks[taskId] === today) {
+    if (player.tasks[taskId] === today) {
       alert('You’ve already completed this task today.');
       return;
     }
     window.open(taskUrl, '_blank');
     setTimeout(() => {
-      setTasks((t) => ({ ...t, [taskId]: today }));
+      setPlayer((p) => ({
+        ...p,
+        tasks: { ...p.tasks, [taskId]: today },
+      }));
     }, 5000);
   };
 
   const claimTaskReward = (taskId) => {
     const today = new Date().toISOString().split('T')[0];
-    if (taskClaims[taskId] === today) {
+    if (player.taskClaims[taskId] === today) {
       alert('You’ve already claimed this task today.');
       return;
     }
-    if (tasks[taskId] !== today) {
+    if (player.tasks[taskId] !== today) {
       alert('Complete the task first!');
       return;
     }
     setPlayer((p) => ({
       ...p,
       muskCount: p.muskCount + 50,
+      taskClaims: { ...p.taskClaims, [taskId]: today },
     }));
-    setTaskClaims((c) => ({ ...c, [taskId]: today }));
   };
 
   const buttonStyle = useMemo(() => ({
@@ -563,58 +643,58 @@ export default function Home() {
           <p>Post on X: &quot;Loving #MUSK Tapper!&quot;</p>
           <button
             onClick={() => startTask('task-x-post', 'https://x.com')}
-            disabled={tasks['task-x-post'] === new Date().toISOString().split('T')[0]}
+            disabled={player.tasks['task-x-post'] === new Date().toISOString().split('T')[0]}
           >
-            {tasks['task-x-post'] === new Date().toISOString().split('T')[0] ? 'Done' : 'Start'}
+            {player.tasks['task-x-post'] === new Date().toISOString().split('T')[0] ? 'Done' : 'Start'}
           </button>
           <button
             onClick={() => claimTaskReward('task-x-post')}
             disabled={
-              tasks['task-x-post'] !== new Date().toISOString().split('T')[0] ||
-              taskClaims['task-x-post'] === new Date().toISOString().split('T')[0]
+              player.tasks['task-x-post'] !== new Date().toISOString().split('T')[0] ||
+              player.taskClaims['task-x-post'] === new Date().toISOString().split('T')[0]
             }
           >
             Claim 50 $MUSK
           </button>
-          <p>Last Claimed: {taskClaims['task-x-post'] || 'Never'}</p>
+          <p>Last Claimed: {player.taskClaims['task-x-post'] || 'Never'}</p>
         </div>
         <div id="task-follow-elon">
-          <p>Follow @ElonMusk on X</p>
+          <p>Follow at ElonMusk on X</p>
           <button
             onClick={() => startTask('task-follow-elon', 'https://x.com/elonmusk')}
-            disabled={tasks['task-follow-elon'] === new Date().toISOString().split('T')[0]}
+            disabled={player.tasks['task-follow-elon'] === new Date().toISOString().split('T')[0]}
           >
-            {tasks['task-follow-elon'] === new Date().toISOString().split('T')[0] ? 'Done' : 'Start'}
+            {player.tasks['task-follow-elon'] === new Date().toISOString().split('T')[0] ? 'Done' : 'Start'}
           </button>
           <button
             onClick={() => claimTaskReward('task-follow-elon')}
             disabled={
-              tasks['task-follow-elon'] !== new Date().toISOString().split('T')[0] ||
-              taskClaims['task-follow-elon'] === new Date().toISOString().split('T')[0]
+              player.tasks['task-follow-elon'] !== new Date().toISOString().split('T')[0] ||
+              player.taskClaims['task-follow-elon'] === new Date().toISOString().split('T')[0]
             }
           >
             Claim 50 $MUSK
           </button>
-          <p>Last Claimed: {taskClaims['task-follow-elon'] || 'Never'}</p>
+          <p>Last Claimed: {player.taskClaims['task-follow-elon'] || 'Never'}</p>
         </div>
         <div id="task-retweet-musk">
           <p>Retweet a post with #MUSK</p>
           <button
             onClick={() => startTask('task-retweet-musk', 'https://x.com/search?q=%23MUSK')}
-            disabled={tasks['task-retweet-musk'] === new Date().toISOString().split('T')[0]}
+            disabled={player.tasks['task-retweet-musk'] === new Date().toISOString().split('T')[0]}
           >
-            {tasks['task-retweet-musk'] === new Date().toISOString().split('T')[0] ? 'Done' : 'Start'}
+            {player.tasks['task-retweet-musk'] === new Date().toISOString().split('T')[0] ? 'Done' : 'Start'}
           </button>
           <button
             onClick={() => claimTaskReward('task-retweet-musk')}
             disabled={
-              tasks['task-retweet-musk'] !== new Date().toISOString().split('T')[0] ||
-              taskClaims['task-retweet-musk'] === new Date().toISOString().split('T')[0]
+              player.tasks['task-retweet-musk'] !== new Date().toISOString().split('T')[0] ||
+              player.taskClaims['task-retweet-musk'] === new Date().toISOString().split('T')[0]
             }
           >
             Claim 50 $MUSK
           </button>
-          <p>Last Claimed: {taskClaims['task-retweet-musk'] || 'Never'}</p>
+          <p>Last Claimed: {player.taskClaims['task-retweet-musk'] || 'Never'}</p>
         </div>
       </div>
       {drops.map((drop) => (
