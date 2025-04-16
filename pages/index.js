@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import Head from 'next/head'; // Import Head from next/head
 import { supabase } from '../supabase';
 
-console.log('Using updated index.js - Version 6.9.2');
+console.log('Using updated index.js - Version 6.9.3');
 
 export default function Home() {
   const [player, setPlayer] = useState({
@@ -24,7 +25,7 @@ export default function Home() {
   });
   const [drops, setDrops] = useState([]);
   const [fallingId, setFallingId] = useState(0);
-  const [isLoading, setIsLoading] = useState(false); // Add loading state to prevent premature saves
+  const [isLoading, setIsLoading] = useState(false);
   const muskButtonRef = useRef(null);
 
   const nftSupply = {
@@ -45,7 +46,7 @@ export default function Home() {
       console.log('No xId, skipping load.');
       return;
     }
-    setIsLoading(true); // Set loading state to true
+    setIsLoading(true);
     try {
       console.log(`Fetching data for xId: ${xId}`);
       const { data, error } = await supabase
@@ -102,7 +103,7 @@ export default function Home() {
     } catch (error) {
       console.error('Supabase load error:', error);
     } finally {
-      setIsLoading(false); // Reset loading state
+      setIsLoading(false);
     }
   }, [player.xAccount]);
 
@@ -514,6 +515,10 @@ export default function Home() {
 
   return (
     <div className="container">
+      <Head>
+        <title>MuskCoin Tapper</title>
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
       <h1>MuskCoin Tapper</h1>
       <div id="musk_Count" className="counter">{Math.floor(player.muskCount)} $MUSK</div>
       <p>Golden $MUSK: {player.goldenMusk} | Prestige Level: {player.prestigeLevel}</p>
