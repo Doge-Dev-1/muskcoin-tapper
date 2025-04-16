@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import Head from 'next/head'; // Import Head from next/head
+import Head from 'next/head';
 import { supabase } from '../supabase';
 
-console.log('Using updated index.js - Version 6.9.3');
+console.log('Using updated index.js - Version 6.9.4');
 
 export default function Home() {
   const [player, setPlayer] = useState({
@@ -37,7 +37,7 @@ export default function Home() {
   const [availableNFTs, setAvailableNFTs] = useState(nftSupply);
 
   const X_CLIENT_ID = 'ak1Va19OV25BZ2d1X1FIVDNya2g6MTpjaQ';
-  const REDIRECT_URI = 'http://localhost:3000'; // Update to Vercel URL later
+  const REDIRECT_URI = 'https://muskcoin-tapper.vercel.app'; // Updated to Vercel domain
   const X_AUTH_URL = `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${X_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&scope=users.read%20tweet.read&state=state&code_challenge=challenge&code_challenge_method=plain`;
 
   // Load user data from Supabase
