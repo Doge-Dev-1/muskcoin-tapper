@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import Head from 'next/head';
 import { supabase } from '../supabase';
 
-console.log('Using updated index.js - Version 6.9.7');
+console.log('Using updated index.js - Version 6.9.10');
 
 export default function Home() {
   const [player, setPlayer] = useState({
@@ -38,11 +38,65 @@ export default function Home() {
   const [availableNFTs, setAvailableNFTs] = useState(nftSupply);
 
   const generateState = () => Math.random().toString(36).substring(2, 15);
-  const [oauthState, setOauthState] = useState(generateState());
+  const [oauthState, setOauthState] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const storedState = sessionStorage.getItem('oauthState');
+      if (storedState) return storedState;
+      const newState = generateState();
+      sessionStorage.setItem('oauthState', newState);
+      return newState;
+    }
+    return generateState();
+  });
 
   const X_CLIENT_ID = 'ak1Va19OV25BZ2d1X1FIVDNya2g6MTpjaQ';
   const REDIRECT_URI = 'https://muskcoin-tapper.vercel.app';
   const X_AUTH_URL = `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${X_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&scope=users.read%20tweet.read&state=${oauthState}&code_challenge=challenge&code_challenge_method=plain`;
+
+  // Save data to Supabase
+  const saveUserData = useCallback(async () => {
+    if (!player.xId) {
+      console.log('No xId, skipping save.');
+      return;
+    }
+    if (!isInitialLoadComplete) {
+      console.log('Initial load not complete, skipping save.');
+      return;
+    }
+    if (isLoading) {
+      console.log('Still loading data, skipping save to avoid overwrite.');
+      return;
+    }
+    try {
+      const dataToSave = {
+        id: player.xId,
+        x_account: player.xAccount,
+        musk_count: player.muskCount,
+        cpc: player.cpc,
+        cps: player.cps,
+        golden_musk: player.goldenMusk,
+        clicks: player.clicks,
+        falling_grabbed: player.fallingGrabbed,
+        elon_level: player.elonLevel,
+        trump_level: player.trumpLevel,
+        prestige_level: player.prestigeLevel,
+        nfts: player.nfts,
+        wallet_address: player.walletAddress,
+        starship_tier: player.starshipTier,
+        tasks: player.tasks,
+        task_claims: player.taskClaims,
+      };
+      console.log(`Saving data for xId: ${player.xId} Data: ${JSON.stringify(dataToSave)}`);
+      const { data, error } = await supabase
+        .from('users')
+        .upsert(dataToSave, { onConflict: 'id' });
+      if (error) throw error;
+      console.log('Saved to Supabase:', data);
+    } catch (error) {
+      console.error('Supabase save error:', error);
+      alert('Failed to save user data—check console for details.');
+    }
+  }, [player, isLoading, isInitialLoadComplete]);
 
   // Load user data from Supabase
   const loadUserData = useCallback(async (xId) => {
@@ -81,6 +135,8 @@ export default function Home() {
             taskClaims: data.task_claims || {},
           }));
           setIsInitialLoadComplete(true);
+          // Force a save to ensure data persists
+          await saveUserData();
           return;
         } else {
           console.log(`No user found for xId: ${xId}, initializing new user`);
@@ -110,6 +166,8 @@ export default function Home() {
             ...newUser,
           }));
           setIsInitialLoadComplete(true);
+          // Force a save for new user
+          await saveUserData();
           return;
         }
       } catch (error) {
@@ -123,47 +181,7 @@ export default function Home() {
       }
     }
     setIsLoading(false);
-  }, [player.xAccount]);
-
-  // Save data to Supabase
-  const saveUserData = useCallback(async () => {
-    if (!player.xId || !isInitialLoadComplete) {
-      console.log('No xId or initial load not complete, skipping save.');
-      return;
-    }
-    if (isLoading) {
-      console.log('Still loading data, skipping save to avoid overwrite.');
-      return;
-    }
-    try {
-      const dataToSave = {
-        id: player.xId,
-        x_account: player.xAccount,
-        musk_count: player.muskCount,
-        cpc: player.cpc,
-        cps: player.cps,
-        golden_musk: player.goldenMusk,
-        clicks: player.clicks,
-        falling_grabbed: player.fallingGrabbed,
-        elon_level: player.elonLevel,
-        trump_level: player.trumpLevel,
-        prestige_level: player.prestigeLevel,
-        nfts: player.nfts,
-        wallet_address: player.walletAddress,
-        starship_tier: player.starshipTier,
-        tasks: player.tasks,
-        task_claims: player.taskClaims,
-      };
-      console.log(`Saving data for xId: ${player.xId} Data: ${JSON.stringify(dataToSave)}`);
-      const { data, error } = await supabase
-        .from('users')
-        .upsert(dataToSave, { onConflict: 'id' });
-      if (error) throw error;
-      console.log('Saved to Supabase:', data);
-    } catch (error) {
-      console.error('Supabase save error:', error);
-    }
-  }, [player, isLoading, isInitialLoadComplete]);
+  }, [player.xAccount, saveUserData]); // Added saveUserData to fix ESLint warning
 
   // Handle X OAuth callback
   const handleXCallback = useCallback(async (code) => {
@@ -219,19 +237,35 @@ export default function Home() {
       const returnedState = urlParams.get('state');
       if (code) {
         console.log('Handling X OAuth with code:', code, 'state:', returnedState);
-        if (returnedState !== oauthState) {
-          console.warn('State mismatch! Expected:', oauthState, 'Got:', returnedState);
+        const storedState = sessionStorage.getItem('oauthState');
+        if (returnedState !== storedState) {
+          console.warn('State mismatch! Expected:', storedState, 'Got:', returnedState);
           alert('OAuth state mismatch—login may fail.');
+          return; // Stop processing if state mismatch
         }
         handleXCallback(code);
       }
     }
-  }, [player.xId, loadUserData, oauthState, handleXCallback]);
+  }, [player.xId, loadUserData, handleXCallback]);
 
   // Save data when specific fields change
   useEffect(() => {
+    console.log('Save useEffect triggered:', {
+      xId: player.xId,
+      isLoading,
+      isInitialLoadComplete,
+      muskCount: player.muskCount,
+      clicks: player.clicks,
+      taskClaims: player.taskClaims,
+    });
     if (player.xId && !isLoading && isInitialLoadComplete) {
       saveUserData();
+    } else {
+      console.log('Save useEffect skipped:', {
+        xId: player.xId,
+        isLoading,
+        isInitialLoadComplete,
+      });
     }
   }, [player.muskCount, player.clicks, player.taskClaims, player.xId, saveUserData, isLoading, isInitialLoadComplete]);
 
@@ -428,7 +462,11 @@ export default function Home() {
   };
 
   const loginWithX = () => {
-    setOauthState(generateState());
+    const newState = generateState();
+    setOauthState(newState);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('oauthState', newState);
+    }
     console.log('Attempting to redirect to X OAuth:', X_AUTH_URL);
     try {
       window.location.href = X_AUTH_URL;
@@ -449,7 +487,9 @@ export default function Home() {
       return newState;
     });
     console.log('Logged out from X, cleared xAccount and xId.');
-    window.sessionStorage.clear();
+    if (typeof window !== 'undefined') {
+      sessionStorage.clear();
+    }
   };
 
   const connectWallet = () => {
