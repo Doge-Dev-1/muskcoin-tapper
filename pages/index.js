@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import Head from 'next/head';
 import { supabase } from '../supabase';
 
-console.log('Using updated index.js - Version 6.9.4');
+console.log('Using updated index.js - Version 6.9.7');
 
 export default function Home() {
   const [player, setPlayer] = useState({
@@ -26,6 +26,7 @@ export default function Home() {
   const [drops, setDrops] = useState([]);
   const [fallingId, setFallingId] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialLoadComplete, setIsInitialLoadComplete] = useState(false);
   const muskButtonRef = useRef(null);
 
   const nftSupply = {
@@ -36,9 +37,12 @@ export default function Home() {
   };
   const [availableNFTs, setAvailableNFTs] = useState(nftSupply);
 
+  const generateState = () => Math.random().toString(36).substring(2, 15);
+  const [oauthState, setOauthState] = useState(generateState());
+
   const X_CLIENT_ID = 'ak1Va19OV25BZ2d1X1FIVDNya2g6MTpjaQ';
-  const REDIRECT_URI = 'https://muskcoin-tapper.vercel.app'; // Updated to Vercel domain
-  const X_AUTH_URL = `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${X_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&scope=users.read%20tweet.read&state=state&code_challenge=challenge&code_challenge_method=plain`;
+  const REDIRECT_URI = 'https://muskcoin-tapper.vercel.app';
+  const X_AUTH_URL = `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${X_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&scope=users.read%20tweet.read&state=${oauthState}&code_challenge=challenge&code_challenge_method=plain`;
 
   // Load user data from Supabase
   const loadUserData = useCallback(async (xId) => {
@@ -47,70 +51,84 @@ export default function Home() {
       return;
     }
     setIsLoading(true);
-    try {
-      console.log(`Fetching data for xId: ${xId}`);
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', xId)
-        .single();
-      if (error && error.code !== 'PGRST116') throw error;
-      if (data) {
-        console.log('Loaded from Supabase:', data);
-        setPlayer((p) => ({
-          ...p,
-          muskCount: data.musk_count || 0,
-          cpc: data.cpc || 1,
-          cps: data.cps || 0,
-          goldenMusk: data.golden_musk || 0,
-          clicks: data.clicks || 0,
-          fallingGrabbed: data.falling_grabbed || 0,
-          elonLevel: data.elon_level || 1,
-          trumpLevel: data.trump_level || 0,
-          prestigeLevel: data.prestige_level || 0,
-          nfts: data.nfts || [],
-          walletAddress: data.wallet_address || null,
-          starshipTier: data.starship_tier || 'default',
-          tasks: data.tasks || {},
-          taskClaims: data.task_claims || {},
-        }));
-      } else {
-        console.log('New user, initializing in Supabase');
-        const newUser = {
-          id: xId,
-          x_account: player.xAccount,
-          musk_count: 0,
-          cpc: 1,
-          cps: 0,
-          golden_musk: 0,
-          clicks: 0,
-          falling_grabbed: 0,
-          elon_level: 1,
-          trump_level: 0,
-          prestige_level: 0,
-          nfts: [],
-          wallet_address: null,
-          starship_tier: 'default',
-          tasks: {},
-          task_claims: {},
-        };
-        await supabase.from('users').upsert(newUser);
-        setPlayer((p) => ({
-          ...p,
-          ...newUser,
-        }));
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        console.log(`Fetching data for xId: ${xId} (Attempt ${4 - retries}/3)`);
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', xId)
+          .single();
+        if (error && error.code !== 'PGRST116') throw error;
+        if (data) {
+          console.log('Loaded from Supabase:', JSON.stringify(data));
+          setPlayer((p) => ({
+            ...p,
+            muskCount: data.musk_count || 0,
+            cpc: data.cpc || 1,
+            cps: data.cps || 0,
+            goldenMusk: data.golden_musk || 0,
+            clicks: data.clicks || 0,
+            fallingGrabbed: data.falling_grabbed || 0,
+            elonLevel: data.elon_level || 1,
+            trumpLevel: data.trump_level || 0,
+            prestigeLevel: data.prestige_level || 0,
+            nfts: data.nfts || [],
+            walletAddress: data.wallet_address || null,
+            starshipTier: data.starship_tier || 'default',
+            tasks: data.tasks || {},
+            taskClaims: data.task_claims || {},
+          }));
+          setIsInitialLoadComplete(true);
+          return;
+        } else {
+          console.log(`No user found for xId: ${xId}, initializing new user`);
+          const newUser = {
+            id: xId,
+            x_account: player.xAccount,
+            musk_count: 0,
+            cpc: 1,
+            cps: 0,
+            golden_musk: 0,
+            clicks: 0,
+            falling_grabbed: 0,
+            elon_level: 1,
+            trump_level: 0,
+            prestige_level: 0,
+            nfts: [],
+            wallet_address: null,
+            starship_tier: 'default',
+            tasks: {},
+            task_claims: {},
+          };
+          const { error: upsertError } = await supabase.from('users').upsert(newUser);
+          if (upsertError) throw upsertError;
+          console.log('Initialized new user in Supabase:', newUser);
+          setPlayer((p) => ({
+            ...p,
+            ...newUser,
+          }));
+          setIsInitialLoadComplete(true);
+          return;
+        }
+      } catch (error) {
+        console.error(`Supabase load error (Attempt ${4 - retries}/3):`, error);
+        retries--;
+        if (retries === 0) {
+          console.error('Max retries reached for xId:', xId);
+          alert('Failed to load user data—check console.');
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
-    } catch (error) {
-      console.error('Supabase load error:', error);
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
   }, [player.xAccount]);
 
   // Save data to Supabase
   const saveUserData = useCallback(async () => {
-    if (!player.xId) {
-      console.log('No xId, skipping save.');
+    if (!player.xId || !isInitialLoadComplete) {
+      console.log('No xId or initial load not complete, skipping save.');
       return;
     }
     if (isLoading) {
@@ -137,15 +155,58 @@ export default function Home() {
         task_claims: player.taskClaims,
       };
       console.log(`Saving data for xId: ${player.xId} Data: ${JSON.stringify(dataToSave)}`);
-      const { data, error } = await supabase.from('users').upsert(dataToSave);
+      const { data, error } = await supabase
+        .from('users')
+        .upsert(dataToSave, { onConflict: 'id' });
       if (error) throw error;
       console.log('Saved to Supabase:', data);
     } catch (error) {
       console.error('Supabase save error:', error);
     }
-  }, [player, isLoading]);
+  }, [player, isLoading, isInitialLoadComplete]);
 
-  // Load user data on xId change
+  // Handle X OAuth callback
+  const handleXCallback = useCallback(async (code) => {
+    try {
+      console.log('Sending POST to /api/x-auth with code:', code);
+      const response = await fetch('/api/x-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, redirect_uri: REDIRECT_URI, state: oauthState }),
+      });
+      console.log('Response from /api/x-auth:', response.status, response.statusText);
+      const data = await response.json();
+      console.log('Data from /api/x-auth:', data);
+      if (data.user) {
+        const newXId = data.user.id;
+        const newXAccount = `@${data.user.username}`;
+        console.log(`User data from X: id=${newXId}, username=${newXAccount}`);
+        if (player.xId && player.xId !== newXId) {
+          console.warn(`xId mismatch! Old: ${player.xId}, New: ${newXId}`);
+          alert('Warning: X account ID changed. This may reset your progress.');
+        }
+        setPlayer((p) => {
+          const newState = {
+            ...p,
+            xAccount: newXAccount,
+            xId: newXId,
+          };
+          console.log(`Player state after X login: ${JSON.stringify(newState)}`);
+          return newState;
+        });
+        alert(`Logged in as ${newXAccount}`);
+        window.history.replaceState({}, document.title, REDIRECT_URI);
+      } else {
+        console.log('No user data in response:', data);
+        alert('Login failed: No user data received.');
+      }
+    } catch (error) {
+      console.error('X login failed:', error);
+      alert('Login failed—check console for details.');
+    }
+  }, [player.xId, oauthState]);
+
+  // Load user data on xId change and handle OAuth redirect
   useEffect(() => {
     if (player.xId) {
       loadUserData(player.xId);
@@ -155,19 +216,24 @@ export default function Home() {
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get('code');
+      const returnedState = urlParams.get('state');
       if (code) {
-        console.log('Handling X OAuth with code:', code);
+        console.log('Handling X OAuth with code:', code, 'state:', returnedState);
+        if (returnedState !== oauthState) {
+          console.warn('State mismatch! Expected:', oauthState, 'Got:', returnedState);
+          alert('OAuth state mismatch—login may fail.');
+        }
         handleXCallback(code);
       }
     }
-  }, [player.xId, loadUserData]);
+  }, [player.xId, loadUserData, oauthState, handleXCallback]);
 
   // Save data when specific fields change
   useEffect(() => {
-    if (player.xId && !isLoading) {
+    if (player.xId && !isLoading && isInitialLoadComplete) {
       saveUserData();
     }
-  }, [player.muskCount, player.clicks, player.taskClaims, player.xId, saveUserData, isLoading]);
+  }, [player.muskCount, player.clicks, player.taskClaims, player.xId, saveUserData, isLoading, isInitialLoadComplete]);
 
   // CPS and Starship Tier Update
   useEffect(() => {
@@ -362,6 +428,7 @@ export default function Home() {
   };
 
   const loginWithX = () => {
+    setOauthState(generateState());
     console.log('Attempting to redirect to X OAuth:', X_AUTH_URL);
     try {
       window.location.href = X_AUTH_URL;
@@ -382,40 +449,7 @@ export default function Home() {
       return newState;
     });
     console.log('Logged out from X, cleared xAccount and xId.');
-  };
-
-  const handleXCallback = async (code) => {
-    try {
-      console.log('Sending POST to /api/x-auth with code:', code);
-      const response = await fetch('/api/x-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, redirect_uri: REDIRECT_URI }),
-      });
-      console.log('Response from /api/x-auth:', response.status, response.statusText);
-      const data = await response.json();
-      console.log('Data from /api/x-auth:', data);
-      if (data.user) {
-        console.log('User data from X:', data.user);
-        setPlayer((p) => {
-          const newState = {
-            ...p,
-            xAccount: `@${data.user.username}`,
-            xId: data.user.id,
-          };
-          console.log(`Player state after X login: ${JSON.stringify(newState)}`);
-          return newState;
-        });
-        alert(`Logged in as @${data.user.username}`);
-        window.history.replaceState({}, document.title, REDIRECT_URI);
-      } else {
-        console.log('No user data in response:', data);
-        alert('Login failed: No user data received.');
-      }
-    } catch (error) {
-      console.error('X login failed:', error);
-      alert('Login failed—check console for details.');
-    }
+    window.sessionStorage.clear();
   };
 
   const connectWallet = () => {
